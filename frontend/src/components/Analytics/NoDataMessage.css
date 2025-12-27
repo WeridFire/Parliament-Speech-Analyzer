@@ -1,0 +1,60 @@
+/**
+ * NoDataMessage Styles
+ */
+
+.no-data-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 2rem;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-lg, 16px);
+    margin: 1rem 0;
+}
+
+.no-data-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    background: rgba(99, 102, 241, 0.1);
+    border-radius: 50%;
+    color: #6366f1;
+    margin-bottom: 1rem;
+}
+
+.no-data-message h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    margin-bottom: 0.5rem;
+}
+
+.no-data-message p {
+    font-size: 0.9rem;
+    color: #94a3b8;
+    max-width: 400px;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.no-data-message p strong {
+    color: #a5b4fc;
+}
+
+.no-data-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 1rem;
+    padding: 8px 16px;
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: var(--radius-sm, 6px);
+    font-size: 0.8rem;
+    color: #a5b4fc;
+}

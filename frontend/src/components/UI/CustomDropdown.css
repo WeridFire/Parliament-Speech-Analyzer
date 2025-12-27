@@ -1,0 +1,130 @@
+/**
+ * Custom Dropdown Styles
+ * Matches the dark glassmorphism design of the app
+ */
+
+.custom-dropdown {
+    position: relative;
+    flex: 1;
+    min-width: 130px;
+}
+
+.dropdown-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dropdown-trigger:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.dropdown-trigger .placeholder {
+    color: var(--text-muted);
+}
+
+.dropdown-arrow {
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+
+.dropdown-arrow.rotated {
+    transform: rotate(180deg);
+}
+
+.custom-dropdown.open .dropdown-trigger {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+/* Dropdown Menu */
+.dropdown-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
+    max-height: 240px;
+    overflow-y: auto;
+    animation: dropdownSlide 0.15s ease-out;
+}
+
+@keyframes dropdownSlide {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.dropdown-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+}
+
+.dropdown-item:hover {
+    background: var(--bg-card);
+    color: var(--text-primary);
+}
+
+.dropdown-item.selected {
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--accent-primary);
+}
+
+.dropdown-item.selected:hover {
+    background: rgba(99, 102, 241, 0.25);
+}
+
+.dropdown-item svg {
+    color: var(--accent-primary);
+}
+
+/* Scrollbar for dropdown menu */
+.dropdown-menu::-webkit-scrollbar {
+    display: block;
+    width: 6px;
+}
+
+.dropdown-menu::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.dropdown-menu::-webkit-scrollbar-thumb {
+    background: var(--bg-card);
+    border-radius: 3px;
+}
