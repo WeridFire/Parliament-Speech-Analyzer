@@ -29,6 +29,8 @@ from .sentiment import (
     compute_topic_sentiment,
     compute_readability_scores,
     compute_polarization_scores,
-    compute_gulpease_score
+    compute_gulpease_score,
+    compute_party_topic_sentiment,
+    compute_sentiment_rankings
 )
 from .analytics import PoliticalAnalytics

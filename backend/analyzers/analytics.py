@@ -36,7 +36,9 @@ from .temporal import (
 from .sentiment import (
     compute_topic_sentiment,
     compute_readability_scores,
-    compute_polarization_scores
+    compute_polarization_scores,
+    compute_party_topic_sentiment,
+    compute_sentiment_rankings
 )
 from .transformer_sentiment import (
     compute_topic_sentiment_transformer,
@@ -401,6 +403,21 @@ class PoliticalAnalytics:
             'polarization': compute_polarization_scores(
                 self.df,
                 self.text_col,
+                self.speaker_col,
+                self.party_col
+            ),
+            'party_topic_sentiment': compute_party_topic_sentiment(
+                self.df,
+                self.text_col,
+                self.cluster_col,
+                self.cluster_labels,
+                self.party_col
+            ),
+            'sentiment_rankings': compute_sentiment_rankings(
+                self.df,
+                self.text_col,
+                self.cluster_col,
+                self.cluster_labels,
                 self.speaker_col,
                 self.party_col
             )
