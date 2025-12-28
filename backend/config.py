@@ -78,6 +78,34 @@ PARTY_NORMALIZATION = {
 
 
 # =============================================================================
+# POLITICAL COALITIONS (for left/right polarization analysis)
+# =============================================================================
+
+# Right-wing coalition (Governo Meloni)
+RIGHT_PARTIES = {
+    "Fratelli d'Italia", "FdI", "FDI",
+    "Lega", "LEGA",
+    "Forza Italia", "FI", "FI-PPE", "FI-BP-PPE",
+    "Noi Moderati", "NM", "NM(N-C-U-I)", "NM(N-C-U-I",
+}
+
+# Left-wing / Opposition parties
+LEFT_PARTIES = {
+    "Partito Democratico", "PD", "PD-IDP",
+    "Movimento 5 Stelle", "M5S",
+    "AVS", "Alleanza Verdi Sinistra", "Misto-AVS",
+    "+Europa", "Misto-PiùEuropa", "MISTO-+EUROPA",
+}
+
+# Center parties (often swing/third pole)
+CENTER_PARTIES = {
+    "Azione", "Azione-RE", "Azione-IV-RE", "IV-C-RE",
+    "Italia Viva", "IV",
+    "Misto", "MISTO",
+}
+
+
+# =============================================================================
 # ANALYSIS
 # =============================================================================
 

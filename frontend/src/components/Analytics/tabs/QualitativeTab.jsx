@@ -1,11 +1,12 @@
 /**
  * Qualitative Tab - Sentiment, readability, and polarization analysis
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import Plotly from 'plotly.js-dist-min';
 import createPlotlyComponent from 'react-plotly.js/factory';
-import { MessageSquare, BookOpen, Swords, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { MessageSquare, BookOpen, Swords, ThumbsUp, ThumbsDown, Grid, TrendingUp, TrendingDown } from 'lucide-react';
 import NoDataMessage from '../NoDataMessage';
+import CustomDropdown from '../../UI/CustomDropdown';
 
 const Plot = createPlotlyComponent(Plotly);
 
@@ -13,6 +14,11 @@ const QualitativeTab = ({ analytics, clusters, selectedPeriod }) => {
     const sentiment = analytics?.topic_sentiment || {};
     const readability = analytics?.readability || {};
     const polarization = analytics?.polarization || {};
+    const partyTopicSentiment = analytics?.party_topic_sentiment || {};
+    const sentimentRankings = analytics?.sentiment_rankings || {};
+
+    // Selected topic for rankings
+    const [selectedRankingTopic, setSelectedRankingTopic] = useState(null);
 
     // Check if we have any data
     const hasData = Object.keys(sentiment.by_cluster || {}).length > 0 ||
@@ -88,6 +94,54 @@ const QualitativeTab = ({ analytics, clusters, selectedPeriod }) => {
             .sort((a, b) => b.avg_score - a.avg_score);
     }, [polarization]);
 
+    // Sentiment Heatmap data
+    const heatmapData = useMemo(() => {
+        if (!partyTopicSentiment.matrix || partyTopicSentiment.matrix.length === 0) return null;
+
+        return {
+            data: [{
+                type: 'heatmap',
+                z: partyTopicSentiment.matrix,
+                x: partyTopicSentiment.topics,
+                y: partyTopicSentiment.parties,
+                colorscale: [
+                    [0, '#ef4444'],
+                    [0.5, '#1e293b'],
+                    [1, '#22c55e']
+                ],
+                zmin: -0.5,
+                zmax: 0.5,
+                hovertemplate: '%{y}<br>%{x}<br>Sentiment: %{z:.2f}<extra></extra>'
+            }],
+            layout: {
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: 'transparent',
+                margin: { l: 150, r: 20, t: 20, b: 100 },
+                xaxis: {
+                    tickangle: -45,
+                    tickfont: { color: '#94a3b8', size: 10 }
+                },
+                yaxis: {
+                    tickfont: { color: '#94a3b8', size: 10 }
+                }
+            }
+        };
+    }, [partyTopicSentiment]);
+
+    // Available topics for ranking dropdown
+    const rankingTopics = useMemo(() => {
+        return Object.entries(sentimentRankings).map(([id, data]) => ({
+            id: parseInt(id),
+            label: data.label
+        }));
+    }, [sentimentRankings]);
+
+    // Current topic rankings
+    const currentRankings = useMemo(() => {
+        const topicId = selectedRankingTopic ?? rankingTopics[0]?.id;
+        return sentimentRankings[topicId] || {};
+    }, [sentimentRankings, selectedRankingTopic, rankingTopics]);
+
     // Show no data message if period has no data
     if (!hasData && (selectedPeriod?.year || selectedPeriod?.month)) {
         return (
@@ -141,6 +195,99 @@ const QualitativeTab = ({ analytics, clusters, selectedPeriod }) => {
                         </div>
                     </div>
                 </div>
+
+                {/* NEW: Sentiment Heatmap Party × Topic */}
+                <div className="analytics-card full-width">
+                    <div className="card-header">
+                        <h3><Grid size={18} /> Mappa Sentiment Partito × Tema</h3>
+                        <span className="card-subtitle">Come ogni partito parla di ogni tema</span>
+                    </div>
+                    <div className="card-content">
+                        {heatmapData ? (
+                            <div className="chart-container">
+                                <Plot
+                                    data={heatmapData.data}
+                                    layout={heatmapData.layout}
+                                    useResizeHandler={true}
+                                    style={{ width: '100%', height: '350px' }}
+                                    config={{ displayModeBar: false, responsive: true }}
+                                />
+                            </div>
+                        ) : (
+                            <div className="empty-state">
+                                <Grid size={48} />
+                                <p>Dati heatmap non disponibili</p>
+                            </div>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '24px', marginTop: '8px', fontSize: '11px', color: '#64748b' }}>
+                            <span style={{ color: '#ef4444' }}>🔴 Negativo</span>
+                            <span>⚫ Neutro</span>
+                            <span style={{ color: '#22c55e' }}>🟢 Positivo</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* NEW: Top Sentiment Rankings per Topic */}
+                {rankingTopics.length > 0 && (
+                    <>
+                        <div className="analytics-card">
+                            <div className="card-header" style={{ justifyContent: 'space-between' }}>
+                                <h3><TrendingUp size={18} /> Più Positivi per Tema</h3>
+                                <div style={{ maxWidth: '160px' }}>
+                                    <CustomDropdown
+                                        options={rankingTopics.map(t => ({ value: t.id, label: t.label }))}
+                                        value={selectedRankingTopic ?? rankingTopics[0]?.id}
+                                        onChange={(e) => setSelectedRankingTopic(parseInt(e.target.value))}
+                                        className="compact"
+                                    />
+                                </div>
+                            </div>
+                            <div className="card-content">
+                                <div className="ranking-list">
+                                    {(currentRankings.most_positive || []).slice(0, 8).map((item, idx) => (
+                                        <div key={item.speaker} className="ranking-item">
+                                            <span className={`ranking-position ${idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : ''}`}>
+                                                {idx + 1}
+                                            </span>
+                                            <div className="ranking-info">
+                                                <div className="ranking-name">{item.speaker.split(' (')[0]}</div>
+                                                <div className="ranking-party">{item.party}</div>
+                                            </div>
+                                            <span className="score-value" style={{ color: '#22c55e' }}>
+                                                {(item.score * 100).toFixed(0)}%
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="analytics-card">
+                            <div className="card-header">
+                                <h3><TrendingDown size={18} /> Più Negativi per Tema</h3>
+                                <span className="card-subtitle">{currentRankings.label}</span>
+                            </div>
+                            <div className="card-content">
+                                <div className="ranking-list">
+                                    {(currentRankings.most_negative || []).slice(0, 8).map((item, idx) => (
+                                        <div key={item.speaker} className="ranking-item">
+                                            <span className={`ranking-position ${idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : ''}`}>
+                                                {idx + 1}
+                                            </span>
+                                            <div className="ranking-info">
+                                                <div className="ranking-name">{item.speaker.split(' (')[0]}</div>
+                                                <div className="ranking-party">{item.party}</div>
+                                            </div>
+                                            <span className="score-value" style={{ color: '#ef4444' }}>
+                                                {(item.score * 100).toFixed(0)}%
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </>
+                )}
 
                 {/* Readability */}
                 <div className="analytics-card">

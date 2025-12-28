@@ -189,8 +189,8 @@ const TemporalTab = ({ analytics, clusters, selectedPeriod = {} }) => {
                                 <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px' }}>
                                     Keywords monitorate:
                                 </div>
-                                <div className="keywords-cloud" style={{ gap: '4px' }}>
-                                    {crisis.crisis_keywords.slice(0, 10).map(kw => (
+                                <div className="keywords-cloud" style={{ gap: '4px', flexWrap: 'wrap' }}>
+                                    {crisis.crisis_keywords.map(kw => (
                                         <span key={kw} className="keyword-tag" style={{
                                             fontSize: '10px',
                                             padding: '3px 8px',
