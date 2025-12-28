@@ -1,0 +1,98 @@
+# ============================================
+# Python
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ============================================
+# IDE & Editors
+# ============================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+.spyderproject
+.spyproject
+
+# ============================================
+# Backend Cache (regenerated on run)
+# ============================================
+backend/.cache/
+backend/.cache/*
+
+# ============================================
+# Frontend
+# ============================================
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+
+# ============================================
+# Output files (regenerated)
+# ============================================
+output/
+output/*.html
+output/*.json
+
+# ============================================
+# Logs & Temp Files
+# ============================================
+*.log
+*_output.txt
+*.tmp
+.temp/
+
+# ============================================
+# Large files / Models (cached locally)
+# ============================================
+*.bin
+*.pt
+*.pth
+models/
+
+# Generated HTML maps
+mappa_politica*.html
+
+# ============================================
+# OS-specific
+# ============================================
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+.Spotlight-V100
+.Trashes
+
+# ============================================
+# Jupyter / Colab
+# ============================================
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# ============================================
+# Environment Variables (keep private!)
+# ============================================
+.env
+.env.local
+.env.*.local
+
+# ============================================
+# Secrets (never commit!)
+# ============================================
+*.pem
+*.key
+secrets/
+credentials/
