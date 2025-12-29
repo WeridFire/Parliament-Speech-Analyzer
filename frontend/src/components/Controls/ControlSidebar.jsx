@@ -264,7 +264,12 @@ const ControlSidebar = ({ onGoHome, onGoAnalytics }) => {
                             border: '1px solid var(--glass-border)'
                         }}>
                             {data.deputies
-                                .filter(d => (d.name || '').toLowerCase().includes((searchQuery || '').toLowerCase()))
+                                .filter(d => {
+                                    const q = (searchQuery || '').toLowerCase();
+                                    return (d.name || '').toLowerCase().includes(q) ||
+                                        (d.party || '').toLowerCase().includes(q) ||
+                                        (d.role || '').toLowerCase().includes(q);
+                                })
                                 .slice(0, 10) // Limit results
                                 .map(d => (
                                     <div
@@ -281,8 +286,24 @@ const ControlSidebar = ({ onGoHome, onGoAnalytics }) => {
                                         onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
                                         onMouseLeave={(e) => e.target.style.background = 'transparent'}
                                     >
-                                        <div style={{ fontWeight: '500' }}>{d.name}</div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{d.party}</div>
+                                        <div style={{ fontWeight: '500' }}>
+                                            {/* Convert ALL CAPS names to Title Case for display if from Senato */}
+                                            {d.name && d.name === d.name.toUpperCase() && d.name.length > 3
+                                                ? d.name.charAt(0) + d.name.slice(1).toLowerCase()
+                                                : d.name}
+                                        </div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                            {d.party}
+                                            {d.role && (
+                                                <span style={{
+                                                    marginLeft: '6px',
+                                                    color: 'rgba(255,255,255,0.6)',
+                                                    fontStyle: 'italic'
+                                                }}>
+                                                    • {d.role}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 ))
                             }

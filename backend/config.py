@@ -236,7 +236,7 @@ TOPIC_CLUSTERS = {
 }
 
 # Set to None to use automatic K-Means clustering instead:
-TOPIC_CLUSTERS = None
+# TOPIC_CLUSTERS = None
 
 # Embedding model (multilingual)
 EMBEDDING_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
@@ -262,6 +262,8 @@ STOP_WORDS = {
     'nel', 'nella', 'nei', 'negli', 'nelle',
     'sul', 'sulla', 'sui', 'sugli', 'sulle',
     'col', 'coi', 'pel', 'pei',
+    # Truncated forms commonly found after tokenization (e.g. "dell'Italia" -> "dell")
+    'dell', 'dall', 'nell', 'sull', 'all', 'gl', 'un', 'c', 'l', 'd', 'v', 'n', 's',
     
     # === PRONOUNS ===
     'io', 'tu', 'egli', 'ella', 'esso', 'essa', 'noi', 'voi', 'essi', 'esse',

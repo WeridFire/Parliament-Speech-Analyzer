@@ -23,7 +23,19 @@ const SpeechModal = ({ speech, onClose }) => {
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-content" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                    <h3>{getCleanName(speech.deputy)}</h3>
+                    <h3>
+                        {getCleanName(speech.deputy)}
+                        {speech.role && (
+                            <span style={{
+                                fontSize: '0.8em',
+                                color: 'rgba(255,255,255,0.7)',
+                                fontWeight: 'normal',
+                                marginLeft: '8px'
+                            }}>
+                                ({speech.role})
+                            </span>
+                        )}
+                    </h3>
                     <button className="modal-close-btn" onClick={onClose}><X size={20} /></button>
                 </div>
                 <div className="modal-body">

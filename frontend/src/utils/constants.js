@@ -15,6 +15,9 @@ export const PARTY_COLORS = {
     'AVS': '#66bb6a',
     'Azione-RE': '#9c27b0',
     'Noi Moderati': '#00acc1',
+    // Institutions
+    'Governo': '#607d8b',
+    'Presidenza': '#795548',
     // Misto groups
     'Misto': '#9e9e9e',
     'Misto-PiùEuropa': '#7e57c2',
@@ -32,7 +35,12 @@ export const PARTY_CONFIG = {
     'Italia Viva': { shape: 'cross', color: '#ff7043', label: 'IV' },
     'AVS': { shape: 'pentagon', color: '#66bb6a', label: 'AVS' },
     'Azione-RE': { shape: 'hexagon2', color: '#9c27b0', label: 'Az-RE' },
+    'Azione-RE': { shape: 'hexagon2', color: '#9c27b0', label: 'Az-RE' },
     'Noi Moderati': { shape: 'bowtie', color: '#00acc1', label: 'NM' },
+    // Institutions
+    'Governo': { shape: 'diamond', color: '#607d8b', label: 'Gov' },
+    'Presidenza': { shape: 'star', color: '#795548', label: 'Pres' },
+    // Misto
     'Misto': { shape: 'hexagon', color: '#9e9e9e', label: 'Misto' },
     'Misto-PiùEuropa': { shape: 'hexagon', color: '#7e57c2', label: '+Eu' },
     'Misto-MinoranzeLing': { shape: 'hexagon', color: '#78909c', label: 'MinL' },

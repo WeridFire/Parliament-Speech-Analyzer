@@ -23,6 +23,7 @@ import pandas as pd
 
 from backend.config import LEGISLATURE, MONTHS_BACK
 from backend.utils import retry
+from backend.config_roles import build_role_pattern, normalize_role, get_role_category
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,8 @@ class Speech:
     session_number: int
     url: str  # Direct link to the speech/session
     notes: list  # Parliamentary notes like (Applausi), (Interruzioni)
+    role: str = ""  # Government/institutional role (e.g., "ministro", "presidente")
+    role_category: str = ""  # Category: "governo", "presidenza", "ufficio", "altro"
 
 
 def get_session_list(legislature: int = LEGISLATURE, months_back: int = MONTHS_BACK, limit: int = 20) -> list[dict]:
@@ -200,6 +203,20 @@ def _parse_speeches_from_html(soup: BeautifulSoup, session_date: str, session_ur
     # Also try to get from plain text paragraphs
     paragraphs = main_content.find_all(['p', 'div'])
     
+    # Regex patterns for text-based fallback (similar to Senate)
+    # Pattern: SURNAME, role. text (e.g., MELONI, Presidente del Consiglio. ...)
+    role_pattern_str = build_role_pattern()
+    role_fallback_pattern = re.compile(
+        rf'^([A-Z][A-Z\-\']+(?:\s+[A-Z][A-Z\-\']+)?),\s*({role_pattern_str})[^.]*\.\s*(.+)',
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    # Pattern: SURNAME (PARTY). text
+    party_fallback_pattern = re.compile(
+        r'^([A-Z][A-Z\-\']+(?:\s+[A-Z][A-Z\-\']+)?)\s*\(([^)]+)\)\.\s+(.+)',
+        re.DOTALL
+    )
+
     for p in paragraphs:
         # Get text with preserved structure
         text = p.get_text(separator=' ', strip=True)
@@ -207,27 +224,24 @@ def _parse_speeches_from_html(soup: BeautifulSoup, session_date: str, session_ur
         if not text or len(text) < 30:
             continue
         
-        # Check for links with speaker names in this paragraph
+        speaker_found = False
+        
+        # 1. Try generic <a href> link detection (Standard Camera format)
         links = p.find_all('a')
         for link in links:
             link_text = link.get_text(strip=True)
             
-            # Skip non-speaker links (too short or not uppercase start)
+            # Skip non-speaker links
             if not link_text or len(link_text) < 3:
                 continue
-            if not link_text[0].isupper():
+            if not link_text[0].isupper() and link_text not in ['Presidente']:
                 continue
                 
-            # Check if this looks like a speaker name
-            # Speaker names are typically ALL CAPS or First Last format
             name = link_text.strip()
             
             # Get text after this link
             try:
-                # Get the full paragraph text
                 full_text = p.get_text()
-                
-                # Find where the name appears
                 name_pos = full_text.find(name)
                 if name_pos == -1:
                     continue
@@ -241,42 +255,115 @@ def _parse_speeches_from_html(soup: BeautifulSoup, session_date: str, session_ur
                     party = party_match.group(1).strip()
                     remaining = remaining[party_match.end():].strip()
                 
+                # Check for role (e.g., ", Ministro della...")
+                role = ""
+                role_cat = ""
+                
+                # Match: comma, whitespace, ROLE, any chars until dot or end
+                role_match = re.match(rf'^\s*,\s*({role_pattern_str})[^.]*', remaining, re.IGNORECASE)
+                
+                if role_match:
+                    role = normalize_role(role_match.group(1))
+                    role_cat = get_role_category(role)
+                    remaining = remaining[role_match.end():].strip()
+
                 # Remove leading punctuation
                 remaining = re.sub(r'^[\.,:]\s*', '', remaining)
                 
-                # This is a valid speech if we have substantial text
-                if len(remaining) > 50:
-                    # Clean notes like (Applausi)
+                if len(remaining) > 30:
+                    # Clean notes
                     notes = re.findall(r'\(([^)]+)\)', remaining)
                     clean_text = re.sub(r'\([^)]*\)', '', remaining).strip()
                     
-                    if len(clean_text) > 30 and name not in ['PRESIDENTE', 'Presidente']:
-                        speeches.append(Speech(
-                            speaker=name,
-                            party=party,
-                            text=clean_text,
-                            date=session_date,
-                            session_number=0,
-                            url=session_url,
-                            notes=notes
-                        ))
-                        break  # Only one speech per paragraph
-                    elif name in ['PRESIDENTE', 'Presidente'] and len(clean_text) > 30:
-                        speeches.append(Speech(
-                            speaker='PRESIDENTE',
-                            party='',
-                            text=clean_text,
-                            date=session_date,
-                            session_number=0,
-                            url=session_url,
-                            notes=notes
-                        ))
-                        break
+                    if len(clean_text) > 20:
+                        if name in ['PRESIDENTE', 'Presidente']:
+                             speeches.append(Speech(
+                                speaker='PRESIDENTE',
+                                party='',
+                                text=clean_text,
+                                date=session_date,
+                                session_number=0,
+                                url=session_url,
+                                notes=notes,
+                                role="presidente",
+                                role_category="presidenza"
+                            ))
+                        else:
+                            speeches.append(Speech(
+                                speaker=name,
+                                party=party,
+                                text=clean_text,
+                                date=session_date,
+                                session_number=0,
+                                url=session_url,
+                                notes=notes,
+                                role=role,
+                                role_category=role_cat
+                            ))
+                        speaker_found = True
+                        break 
             except Exception as e:
                 logger.debug("Failed to parse speech from link: %s", e)
                 continue
+        
+        if speaker_found:
+            continue
+
+        # 2. Fallback: Check for text-based patterns (Ministry/Role)
+        # e.g. "MELONI, Presidente del Consiglio. ..."
+        match = role_fallback_pattern.match(text)
+        if match:
+            speaker = match.group(1).strip()
+            role = normalize_role(match.group(2))
+            role_cat = get_role_category(role)
+            speech_text = match.group(3).strip()
+            
+            # Extract notes
+            notes = re.findall(r'\(([^)]+)\)', speech_text)
+            clean_text = re.sub(r'\([^)]*\)', '', speech_text).strip()
+            
+            if len(clean_text) > 20:
+                speeches.append(Speech(
+                    speaker=speaker,
+                    party="Governo" if role_cat == "governo" else "",
+                    text=clean_text,
+                    date=session_date,
+                    session_number=0,
+                    url=session_url,
+                    notes=notes,
+                    role=role,
+                    role_category=role_cat
+                ))
+                continue
+
+        # 3. Fallback: Check for text-based patterns (Party)
+        # e.g. "CONTE (M5S). ..."
+        match = party_fallback_pattern.match(text)
+        if match:
+            speaker = match.group(1).strip()
+            party = match.group(2).strip()
+            speech_text = match.group(3).strip()
+            
+            notes = re.findall(r'\(([^)]+)\)', speech_text)
+            clean_text = re.sub(r'\([^)]*\)', '', speech_text).strip()
+            
+            if len(clean_text) > 20 and speaker.isupper():
+                speeches.append(Speech(
+                    speaker=speaker,
+                    party=party,
+                    text=clean_text,
+                    date=session_date,
+                    session_number=0,
+                    url=session_url,
+                    notes=notes,
+                    role="",
+                    role_category=""
+                ))
+                continue
     
     return speeches
+
+
 
 
 def fetch_speeches(limit: int = 200, sessions_to_fetch: int = 10) -> pd.DataFrame:
@@ -309,25 +396,36 @@ def fetch_speeches(limit: int = 200, sessions_to_fetch: int = 10) -> pd.DataFram
         )
         
         for speech in speeches:
-            # Create unique speaker ID: include party if known
+            # Create unique speaker ID based on available info
             speaker_name = speech.speaker
             party = speech.party or ''
+            role = speech.role or ''
+            role_cat = speech.role_category or ''
             
-            # If party is known and speaker is not PRESIDENTE, create unique ID
+            # Build unique speaker ID
             if party and speaker_name not in ['PRESIDENTE']:
                 unique_speaker = f"{speaker_name} [{party}]"
+                group = party
+            elif role:
+                # PRESIDENTE or other role
+                unique_speaker = speaker_name
+                group = "Governo" if role_cat == "governo" else "Presidenza"
             else:
                 unique_speaker = speaker_name
+                group = 'Unknown Group'
             
             all_speeches.append({
                 'date': speech.date,
                 'deputy': unique_speaker,
                 'speaker_base': speaker_name,
-                'group': party or 'Unknown Group',
+                'group': group,
                 'text': speech.text,
-                'source': 'camera',  # Mark source for identification
-                'url': speech.url  # Link to original speech
+                'source': 'camera',
+                'url': speech.url,
+                'role': role,
+                'role_category': role_cat
             })
+
         
         if len(all_speeches) >= limit:
             break

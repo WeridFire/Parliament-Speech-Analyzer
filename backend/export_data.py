@@ -230,10 +230,18 @@ def compute_deputies_data(
         
         rebel_info = rebel_scores.get(deputy, {})
         
+        # Determine primary role (use mode or first non-empty)
+        role = ""
+        if 'role' in deputy_df.columns:
+            roles = deputy_df[deputy_df['role'] != '']['role']
+            if not roles.empty:
+                role = roles.mode()[0]
+        
         deputy_obj = {
             'deputy': deputy,
             'name': clean_name,
             'party': party,
+            'role': role,
             'x': float(avg_x),
             'y': float(avg_y),
             'n_speeches': n_speeches,

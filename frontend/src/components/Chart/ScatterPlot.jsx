@@ -76,9 +76,10 @@ const ScatterPlot = () => {
                     name: name,
                     text: groupSpeeches.map(s => {
                         const name = getCleanName(s.deputy);
+                        const role = s.role ? `<br>Ruolo: ${s.role}` : '';
                         const party = s.party || getPartyFromDeputy(s.deputy);
                         const cluster = s.cluster_label || `Cluster ${s.cluster}`;
-                        return `<b>${name}</b><br>Partito: ${party}<br>Cluster: ${cluster}<br>Data: ${s.date || 'N/A'}`;
+                        return `<b>${name}</b>${role}<br>Partito: ${party}<br>Cluster: ${cluster}<br>Data: ${s.date || 'N/A'}`;
                     }),
                     hoverinfo: 'text',
                     marker: {

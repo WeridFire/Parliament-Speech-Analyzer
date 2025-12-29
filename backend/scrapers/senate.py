@@ -23,6 +23,7 @@ import pandas as pd
 
 from backend.config import LEGISLATURE
 from backend.utils import retry
+from backend.config_roles import build_role_pattern, normalize_role, get_role_category
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -46,6 +47,8 @@ class Speech:
     session_number: int
     url: str  # Direct link to the speech/session
     notes: list  # Parliamentary notes like (Applausi), (Interruzioni)
+    role: str = ""  # Government/institutional role (e.g., "ministro", "presidente")
+    role_category: str = ""  # Category: "governo", "presidenza", "ufficio", "altro"
 
 
 def get_session_list(legislature: int = LEGISLATURE, limit: int = 20) -> list[dict]:
@@ -203,9 +206,11 @@ def _parse_speeches_from_html(soup: BeautifulSoup, session_date: str, session_ur
         re.DOTALL
     )
     
-    # Pattern 4: SURNAME, role. text (e.g., "LOMBARDO, segretario, dà lettura...")
+    # Pattern 4: SURNAME, role. text (modular - includes ministers, PM, etc.)
+    # Uses dynamic pattern from config_roles.py
+    role_pattern_str = build_role_pattern()
     role_pattern = re.compile(
-        r'^([A-Z][A-Z\-\']+(?:\s+[A-Z][A-Z\-\']+)?),\s*(segretario|relatore|sottosegretario)\b[,\.]?\s*(.+)',
+        rf'^([A-Z][A-Z\-\']+(?:\s+[A-Z][A-Z\-\']+)?),\s*({role_pattern_str})[^.]*\.\s*(.+)',
         re.IGNORECASE | re.DOTALL
     )
     
@@ -222,6 +227,8 @@ def _parse_speeches_from_html(soup: BeautifulSoup, session_date: str, session_ur
         speaker = None
         party = ""
         speech_text = None
+        role = ""
+        role_cat = ""
         
         # Try pattern 1: SURNAME (PARTY). text
         match = speaker_with_party_pattern.match(text)
@@ -236,12 +243,17 @@ def _parse_speeches_from_html(soup: BeautifulSoup, session_date: str, session_ur
             if match:
                 speaker = match.group(1).strip()
                 speech_text = match.group(2).strip()
+                role = "presidente"
+                role_cat = "presidenza"
         
         # Try pattern 4: role pattern (before generic speaker)
+        # This captures ministers, PM, undersecretaries, etc.
         if not speaker:
             match = role_pattern.match(text)
             if match:
-                speaker = f"{match.group(1)} ({match.group(2).lower()})"
+                speaker = match.group(1).strip()
+                role = normalize_role(match.group(2))
+                role_cat = get_role_category(role)
                 speech_text = match.group(3).strip()
         
         # Try pattern 3: SURNAME. text (last resort)
@@ -267,10 +279,13 @@ def _parse_speeches_from_html(soup: BeautifulSoup, session_date: str, session_ur
                     date=session_date,
                     session_number=0,
                     url=session_url,
-                    notes=notes
+                    notes=notes,
+                    role=role,
+                    role_category=role_cat
                 ))
     
     return speeches
+
 
 
 def fetch_speeches(limit: int = 200, sessions_to_fetch: int = 5) -> pd.DataFrame:
@@ -302,25 +317,39 @@ def fetch_speeches(limit: int = 200, sessions_to_fetch: int = 5) -> pd.DataFrame
         )
         
         for speech in speeches:
-            # Create unique speaker ID: include party if known to disambiguate homonyms
+            # Create unique speaker ID based on available info
             speaker_name = speech.speaker
             party = speech.party or ''
+            role = speech.role or ''
+            role_cat = speech.role_category or ''
             
-            # If party is known and speaker is not PRESIDENTE, create unique ID
+            # Build unique speaker ID:
+            # - For regular deputies/senators: "SURNAME [PARTY]"
+            # - For government members: "SURNAME" (role is separate field)
+            # - For PRESIDENTE: "PRESIDENTE" (role is separate field)
             if party and speaker_name not in ['PRESIDENTE', 'PRESIDENTESSA']:
                 unique_speaker = f"{speaker_name} [{party}]"
+                group = party
+            elif role:
+                # Government member or PRESIDENTE - use role_category as pseudo-group
+                unique_speaker = speaker_name
+                group = f"Governo" if role_cat == "governo" else "Presidenza"
             else:
                 unique_speaker = speaker_name
+                group = 'Unknown Group'
             
             all_speeches.append({
                 'date': speech.date,
-                'deputy': unique_speaker,  # Now includes party for disambiguation
-                'speaker_base': speaker_name,  # Original surname only
-                'group': party or 'Unknown Group',
+                'deputy': unique_speaker,
+                'speaker_base': speaker_name,
+                'group': group,
                 'text': speech.text,
                 'source': 'senate',
-                'url': speech.url  # Link to original speech
+                'url': speech.url,
+                'role': role,
+                'role_category': role_cat
             })
+
         
         if len(all_speeches) >= limit:
             break
