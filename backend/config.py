@@ -120,117 +120,110 @@ N_CLUSTERS = 8
 # Speeches are assigned to the topic with most keyword matches
 TOPIC_CLUSTERS = {
     0: {
-        'label': 'Economia e Lavoro',
+        'label': 'Fisco e Finanza Pubblica',
         'keywords': [
-            # Macroeconomia e Fisco
-            'economia', 'bilancio', 'manovra', 'def', 'pil', 'debito', 'spread', 
-            'inflazione', 'tasse', 'fisco', 'iva', 'irpef', 'flat tax', 'evasione', 
-            'cuneo fiscale', 'investimenti', 'pnrr', 'mef', 'bce', 'finanza',
-            # Lavoro e Imprese
-            'lavoro', 'occupazione', 'disoccupazione', 'imprese', 'pmi', 'industria', 
-            'made in italy', 'export', 'stipendi', 'salari', 'pensioni', 'precariato', 
-            'contratti', 'sindacati', 'sciopero', 'bonus', 'reddito', 'povertà', 'sussidi'
+            'bilancio', 'manovra', 'def', 'pil', 'debito pubblico', 'spread', 
+            'inflazione', 'tasse', 'fisco', 'iva', 'irpef', 'flat tax', 'evasione fiscale', 
+            'cuneo fiscale', 'investimenti', 'pnrr', 'mef', 'bce', 'finanziaria', 'gettito'
         ]
     },
     1: {
-        'label': 'Sanità e Welfare',
+        'label': 'Lavoro e Imprese',
         'keywords': [
-            # Sanità
-            'sanità', 'salute', 'ssn', 'ospedali', 'medici', 'infermieri', 'pronto soccorso', 
-            'liste d\'attesa', 'ticket', 'farmaci', 'vaccini', 'prevenzione', 'pandemia', 
-            'emergenza', 'ricerca medica', 'asl', 'cliniche',
-            # Welfare
-            'welfare', 'sociale', 'assistenza', 'disabilità', 'fragilità', 'anziani', 
-            'non autosufficienza', 'caregiver', 'famiglia', 'natalità', 'assegno unico', 
-            'asili', 'terzo settore', 'volontariato', 'inclusione', 'sostegno'
+            'lavoro', 'occupazione', 'disoccupazione', 'imprese', 'pmi', 'industria', 
+            'made in italy', 'export', 'stipendi', 'salari', 'pensioni', 'precariato', 
+            'contratti', 'sindacati', 'sciopero', 'bonus', 'reddito di cittadinanza', 'sussidi',
+            'sicurezza sul lavoro', 'inail', 'cig'
         ]
     },
     2: {
-        'label': 'Ambiente e Energia',
+        'label': 'Sanità',
         'keywords': [
-            # Energia
-            'energia', 'gas', 'petrolio', 'bollette', 'rinnovabili', 'fotovoltaico', 
-            'eolico', 'nucleare', 'idrogeno', 'transizione', 'efficientamento', 'trivelle',
-            # Ambiente
-            'ambiente', 'clima', 'cambiamento climatico', 'riscaldamento globale', 
-            'inquinamento', 'co2', 'emissioni', 'sostenibilità', 'green', 'ecologia', 
-            'rifiuti', 'termovalorizzatore', 'differenziata', 'biodiversità', 'parchi', 
-            'siccità', 'dissesto', 'idrogeologico', 'auto elettriche'
+            'sanità', 'salute', 'ssn', 'servizio sanitario', 'ospedali', 'medici', 'infermieri', 
+            'pronto soccorso', 'liste d\'attesa', 'ticket', 'farmaci', 'vaccini', 'prevenzione', 
+            'pandemia', 'emergenza sanitaria', 'ricerca medica', 'asl'
         ]
     },
     3: {
-        'label': 'Immigrazione e Integrazione',
+        'label': 'Welfare e Famiglia',
         'keywords': [
-            'immigrazione', 'migranti', 'stranieri', 'sbarchi', 'lampedusa', 'rotta balcanica',
-            'mediterraneo', 'ong', 'salvataggi', 'naufragio', 'scafisti', 'trafficanti',
-            'frontiere', 'confini', 'accoglienza', 'hub', 'cpr', 'rimpatri', 'espulsioni',
-            'asilo', 'rifugiati', 'protezione', 'integrazione', 'ius scholae', 'ius soli',
-            'cittadinanza', 'permesso di soggiorno', 'decreto flussi', 'regolarizzazione'
+            'welfare', 'sociale', 'assistenza', 'disabilità', 'fragilità', 'anziani', 
+            'non autosufficienza', 'caregiver', 'famiglia', 'natalità', 'assegno unico', 
+            'asili nido', 'terzo settore', 'volontariato', 'inclusione sociale', 'povertà'
         ]
     },
     4: {
-        'label': 'Diritti Civili e Sociali',
+        'label': 'Ambiente e Energia',
         'keywords': [
-            'diritti', 'libertà', 'costituzione', 'uguaglianza', 'discriminazione', 'razzismo',
-            'genere', 'donne', 'femminicidio', 'violenza di genere', 'pari opportunità', 
-            'quote rosa', 'lgbt', 'unioni civili', 'famiglie arcobaleno', 'omotransfobia', 
-            'bioetica', 'fine vita', 'eutanasia', 'suicidio assistito', 'aborto', '194', 
-            'interruzione di gravidanza', 'laicità', 'privacy', 'censura', 'informazione'
+            'energia', 'gas', 'petrolio', 'bollette', 'rinnovabili', 'fotovoltaico', 
+            'eolico', 'nucleare', 'transizione ecologica', 'efficientamento', 
+            'ambiente', 'clima', 'cambiamento climatico', 'emissioni', 'sostenibilità', 
+            'rifiuti', 'termovalorizzatore', 'differenziata', 'siccità', 'dissesto idrogeologico'
         ]
     },
     5: {
-        'label': 'Istruzione e Cultura',
+        'label': 'Giustizia e Legalità',
         'keywords': [
-            # Scuola e Università
-            'scuola', 'istruzione', 'università', 'atenei', 'formazione', 'didattica', 
-            'studenti', 'alunni', 'docenti', 'professori', 'cattedre', 'precari', 'concorsi',
-            'merito', 'abbandono scolastico', 'dispersione', 'edilizia scolastica', 
-            'erasmus', 'ricerca', 'laurea', 'diploma', 'its',
-            # Cultura
-            'cultura', 'arte', 'musei', 'patrimonio', 'spettacolo', 'cinema', 'teatro', 
-            'turismo', 'beni culturali', 'unesco'
+            'giustizia', 'magistratura', 'processo', 'penale', 'civile', 'tribunali', 
+            'carceri', 'detenuti', '41 bis', 'mafia', 'criminalità', 'legalità', 
+            'antimafia', 'codice penale', 'riforma giustizia', 'prescrizione', 'intercettazioni',
+            'nordio', 'cartabia'
         ]
     },
     6: {
-        'label': 'Politica Estera e Difesa',
+        'label': 'Immigrazione',
         'keywords': [
-            # Estera
-            'esteri', 'diplomazia', 'internazionale', 'geopolitica', 'europa', 'ue', 
-            'bruxelles', 'commissione', 'parlamento europeo', 'sovranità', 'trattati', 
-            'usa', 'cina', 'russia', 'ucraina', 'medio oriente', 'africa', 'g7', 'g20',
-            # Difesa e Conflitti
-            'difesa', 'esercito', 'forze armate', 'nato', 'alleanza', 'guerra', 'conflitto', 
-            'pace', 'armi', 'spese militari', 'missioni', 'contingenti', 'sicurezza nazionale'
+            'immigrazione', 'migranti', 'sbarchi', 'lampedusa', 'rotta balcanica', 'mediterraneo', 
+            'ong', 'scafisti', 'trafficanti', 'teatro', 'frontiere', 'confini', 'accoglienza', 
+            'cpr', 'rimpatri', 'espulsioni', 'asilo', 'rifugiati', 'clandestini'
         ]
     },
     7: {
-        'label': 'Infrastrutture e Trasporti',
+        'label': 'Diritti Civili',
         'keywords': [
-            'infrastrutture', 'opere pubbliche', 'grandi opere', 'cantieri', 'appalti', 
-            'codice appalti', 'trasporti', 'mobilità', 'viabilità', 'logistica', 
-            'strade', 'autostrade', 'pedaggi', 'ponti', 'ponte sullo stretto', 
-            'ferrovie', 'treni', 'tav', 'alta velocità', 'pendolari', 'stazioni', 
-            'porti', 'aeroporti', 'trasporto pubblico', 'tpl', 'metro', 'manutenzione'
+            'diritti civili', 'libertà', 'discriminazione', 'razzismo', 'violenza sulle donne', 
+            'femminicidio', 'pari opportunità', 'lgbt', 'unioni civili', 'famiglie arcobaleno', 
+            'omotransfobia', 'fine vita', 'eutanasia', 'suicidio assistito', 'aborto', '194', 
+            'ius scholae', 'cittadinanza'
         ]
     },
     8: {
-        'label': 'Istituzioni e Politica Interna',
+        'label': 'Scuola e Università',
         'keywords': [
-            'governo', 'palazzo chigi', 'consiglio dei ministri', 'parlamento', 'camera', 
-            'senato', 'fiducia', 'decreto', 'emendamenti', 'opposizione', 'maggioranza', 
-            'coalizione', 'partiti', 'elezioni', 'voto', 'sondaggi', 'legge elettorale', 
-            'riforme', 'premierato', 'autonomia', 'federalismo', 'regioni', 'comuni', 
-            'sindaci', 'pubblica amministrazione', 'burocrazia', 'semplificazione', 'quirinale'
+            'scuola', 'istruzione', 'università', 'atenei', 'formazione', 'didattica', 
+            'studenti', 'alunni', 'docenti', 'professori', 'cattedre', 'precari scuola', 'concorsi', 
+            'merito', 'abbandono scolastico', 'edilizia scolastica', 'erasmus', 'ricerca', 'laurea'
         ]
     },
     9: {
-        'label': 'Innovazione e Digitale',
+        'label': 'Agricoltura',
         'keywords': [
-            'innovazione', 'digitale', 'tecnologia', 'tech', 'internet', 'rete', 'web',
-            'banda larga', 'fibra', '5g', 'connettività', 'digital divide',
-            'intelligenza artificiale', 'ai', 'algoritmi', 'big data', 'cloud', 'cyber', 
-            'sicurezza informatica', 'hacker', 'privacy online', 'social', 'piattaforme', 
-            'startup', 'smart working', 'spazio', 'aerospazio'
+            'agricoltura', 'agricoltori', 'trattori', 'coltivatori', 'pac', 'allevatori', 'pesca',
+            'filiera', 'alimentare', 'grano', 'vino', 'siccità', 'peste suina', 'fauna selvatica'
+        ]
+    },
+    10: {
+        'label': 'Politica Estera e Difesa',
+        'keywords': [
+            'esteri', 'diplomazia', 'internazionale', 'geopolitica', 'ucraina', 'russia', 'putin', 
+            'zelensky', 'medio oriente', 'gaza', 'israele', 'hamas', 'palestina', 'onu', 'nato', 
+            'alleanza atlantica', 'difesa', 'esercito', 'forze armate', 'armi', 'spese militari', 'pace'
+        ]
+    },
+    11: {
+        'label': 'Infrastrutture e Trasporti',
+        'keywords': [
+            'infrastrutture', 'opere pubbliche', 'cantieri', 'codice appalti', 'ponte sullo stretto', 
+            'trasporti', 'mobilità', 'ferrovie', 'treni', 'alta velocità', 'tav', 'strade', 
+            'autostrade', 'porti', 'aeroporti', 'trasporto pubblico locale'
+        ]
+    },
+    12: {
+        'label': 'Riforme Istituzionali',
+        'keywords': [
+            'premierato', 'autonomia differenziata', 'regionalismo', 'riforma costituzionale', 
+            'elezione diretta', 'legge elettorale', 'bicameralismo', 'regioni', 'province', 
+            'semplificazione amministrativa', 'burocrazia'
         ]
     }
 }
