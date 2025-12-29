@@ -22,6 +22,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 
 from backend.config import LEGISLATURE
+from backend.utils import retry
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -139,6 +140,7 @@ def _extract_date_from_context(link_element, title: str) -> str:
     return "Unknown"
 
 
+@retry(max_attempts=3, delay=1.0, exceptions=(requests.exceptions.RequestException,))
 def fetch_session_speeches(session_url: str, session_date: str = "") -> list[Speech]:
     """
     Fetch all speeches from a single Senate session's stenographic report.
@@ -154,21 +156,16 @@ def fetch_session_speeches(session_url: str, session_date: str = "") -> list[Spe
     
     headers = {"User-Agent": USER_AGENT}
     
-    try:
-        response = requests.get(session_url, headers=headers, timeout=60)
-        response.raise_for_status()
-        
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Parse speeches from content
-        speeches = _parse_speeches_from_html(soup, session_date, session_url)
-        
-        logger.info(f"Extracted {len(speeches)} speeches from session")
-        return speeches
-        
-    except Exception as e:
-        logger.error(f"Error fetching session: {e}")
-        return []
+    response = requests.get(session_url, headers=headers, timeout=60)
+    response.raise_for_status()
+    
+    soup = BeautifulSoup(response.text, 'html.parser')
+    
+    # Parse speeches from content
+    speeches = _parse_speeches_from_html(soup, session_date, session_url)
+    
+    logger.info(f"Extracted {len(speeches)} speeches from session")
+    return speeches
 
 
 def _parse_speeches_from_html(soup: BeautifulSoup, session_date: str, session_url: str) -> list[Speech]:

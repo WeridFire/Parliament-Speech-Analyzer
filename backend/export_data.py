@@ -27,7 +27,7 @@ from backend.pipeline import generate_embeddings, reduce_dimensions, apply_clust
 
 # Import from backend package
 from backend.scrapers import fetch_speeches, fetch_all_speeches
-from backend.utils import clean_text
+from backend.utils import clean_text, is_cache_valid, save_cache_metadata, show_cache_info, clear_cache, CACHE_DIR
 from backend.analyzers import (
     get_cluster_labels,
     extract_cluster_topics,
@@ -45,6 +45,7 @@ from backend.config import (
     TOPIC_CLUSTERS,
     DATA_SOURCE,
     PARTY_NORMALIZATION,
+    CACHE_MAX_AGE_DAYS,
 )
 
 # Configure logging
@@ -53,11 +54,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-# Cache paths
-CACHE_DIR = Path(__file__).parent / '.cache'
-SPEECHES_CACHE = CACHE_DIR / 'speeches_raw.json'
-EMBEDDINGS_CACHE = CACHE_DIR / 'embeddings.npy'
 
 
 def load_cached_speeches(source: str) -> pd.DataFrame | None:
@@ -77,7 +73,10 @@ def save_speeches_cache(df: pd.DataFrame, source: str):
     cache_file = CACHE_DIR / f'speeches_raw_{source}.json'
     with open(cache_file, 'w', encoding='utf-8') as f:
         json.dump(df.to_dict('records'), f, ensure_ascii=False, indent=2)
+    # Save cache metadata for validation
+    save_cache_metadata(source)
     logger.info("Cached %d speeches to %s", len(df), cache_file.name)
+
 
 
 def load_cached_embeddings(source: str) -> np.ndarray | None:
@@ -650,16 +649,54 @@ def main(force_refetch: bool = False, force_reembed: bool = False, n_clusters_ov
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description='Export Italian Parliament speech data for visualization')
+    parser = argparse.ArgumentParser(
+        description='Export Italian Parliament speech data for visualization',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python export_data.py                    # Use cached data if valid
+  python export_data.py --refetch          # Force refresh from sources
+  python export_data.py --clear-cache      # Clear all cached data
+  python export_data.py --cache-info       # Show cache age and size
+"""
+    )
+    
+    # Data fetching options
     parser.add_argument('--refetch', action='store_true', help='Force re-fetch from parliament sources')
     parser.add_argument('--reembed', action='store_true', help='Force re-generate embeddings')
-    parser.add_argument('--clusters', '-k', type=int, default=None, 
-                        help=f'Number of K-Means clusters (default: {N_CLUSTERS} from config)')
     parser.add_argument('--source', '-s', choices=['senate', 'camera', 'both'], default=None,
                         help=f'Data source (default: {DATA_SOURCE} from config)')
+    
+    # Analysis options
+    parser.add_argument('--clusters', '-k', type=int, default=None, 
+                        help=f'Number of K-Means clusters (default: {N_CLUSTERS} from config)')
     parser.add_argument('--transformer-sentiment', action='store_true',
-                        help='Use transformer model for sentiment (requires transformers library, slower but more accurate)')
+                        help='Use transformer model for sentiment (slower but more accurate)')
+    
+    # Cache management
+    parser.add_argument('--cache-info', action='store_true', help='Show cache status and exit')
+    parser.add_argument('--clear-cache', action='store_true', help='Clear all cached data and exit')
+    parser.add_argument('--max-cache-age', type=int, default=CACHE_MAX_AGE_DAYS,
+                        help=f'Max cache age in days (default: {CACHE_MAX_AGE_DAYS})')
+    
+    # Logging
+    parser.add_argument('--verbose', '-v', action='store_true', help='Enable debug logging')
+    
     args = parser.parse_args()
+    
+    # Set log level
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+    
+    # Handle cache commands
+    if args.cache_info:
+        show_cache_info()
+        sys.exit(0)
+    
+    if args.clear_cache:
+        clear_cache()
+        print("✅ Cache cleared")
+        sys.exit(0)
     
     main(
         force_refetch=args.refetch, 

@@ -22,6 +22,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 
 from backend.config import LEGISLATURE, MONTHS_BACK
+from backend.utils import retry
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +145,7 @@ def _extract_date_from_context(link_element, year: int, month: int) -> str:
     return f"{year}-{month:02d}-01"  # Default to first of month
 
 
+@retry(max_attempts=3, delay=1.0, exceptions=(requests.exceptions.RequestException,))
 def fetch_session_speeches(session_url: str, session_date: str = "") -> list[Speech]:
     """
     Fetch all speeches from a single Chamber session's stenographic report.
@@ -159,21 +161,16 @@ def fetch_session_speeches(session_url: str, session_date: str = "") -> list[Spe
     
     headers = {"User-Agent": USER_AGENT}
     
-    try:
-        response = requests.get(session_url, headers=headers, timeout=60)
-        response.raise_for_status()
-        
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Parse speeches from content
-        speeches = _parse_speeches_from_html(soup, session_date, session_url)
-        
-        logger.info("Extracted %d speeches from session", len(speeches))
-        return speeches
-        
-    except Exception as e:
-        logger.error("Error fetching session: %s", e)
-        return []
+    response = requests.get(session_url, headers=headers, timeout=60)
+    response.raise_for_status()
+    
+    soup = BeautifulSoup(response.text, 'html.parser')
+    
+    # Parse speeches from content
+    speeches = _parse_speeches_from_html(soup, session_date, session_url)
+    
+    logger.info("Extracted %d speeches from session", len(speeches))
+    return speeches
 
 
 def _parse_speeches_from_html(soup: BeautifulSoup, session_date: str, session_url: str) -> list[Speech]:

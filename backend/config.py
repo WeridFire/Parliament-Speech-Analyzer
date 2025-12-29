@@ -26,6 +26,9 @@ LEGISLATURE = 19
 # Minimum word count for a speech to be included
 MIN_WORDS = 30
 
+# Maximum age (in days) for cached data before automatic refresh
+CACHE_MAX_AGE_DAYS = 7
+
 # Party name normalization - maps various spellings to canonical names
 # This unifies party names between Camera and Senato
 PARTY_NORMALIZATION = {
