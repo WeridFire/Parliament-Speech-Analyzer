@@ -26,6 +26,9 @@ LEGISLATURE = 19
 # Minimum word count for a speech to be included
 MIN_WORDS = 30
 
+# Minimum number of speeches for a deputy to be displayed in frontend
+MIN_SPEECHES_DISPLAY = 5
+
 # Maximum age (in days) for cached data before automatic refresh
 CACHE_MAX_AGE_DAYS = 7
 
@@ -84,6 +87,9 @@ PARTY_NORMALIZATION = {
 # POLITICAL COALITIONS (for left/right polarization analysis)
 # =============================================================================
 
+# Whether to classify "Governo" as right-wing in polarization analysis
+CLASSIFY_GOVERNO_AS_RIGHT = True
+
 # Right-wing coalition (Governo Meloni)
 RIGHT_PARTIES = {
     "Fratelli d'Italia", "FdI", "FDI",
@@ -91,6 +97,10 @@ RIGHT_PARTIES = {
     "Forza Italia", "FI", "FI-PPE", "FI-BP-PPE",
     "Noi Moderati", "NM", "NM(N-C-U-I)", "NM(N-C-U-I",
 }
+
+# Add Governo to right-wing if configured
+if CLASSIFY_GOVERNO_AS_RIGHT:
+    RIGHT_PARTIES.add("Governo")
 
 # Left-wing / Opposition parties
 LEFT_PARTIES = {
@@ -219,11 +229,17 @@ TOPIC_CLUSTERS = {
         ]
     },
     12: {
-        'label': 'Riforme Istituzionali',
+        'label': 'Premierato e Autonomia',
         'keywords': [
-            'premierato', 'autonomia differenziata', 'regionalismo', 'riforma costituzionale', 
-            'elezione diretta', 'legge elettorale', 'bicameralismo', 'regioni', 'province', 
-            'semplificazione amministrativa', 'burocrazia'
+            'premierato', 'autonomia differenziata', 'regionalismo', 'elezione diretta',
+            'riforma costituzionale', 'presidenzialismo', 'semipresidenzialismo'
+        ]
+    },
+    13: {
+        'label': 'Riforme Elettorali',
+        'keywords': [
+            'legge elettorale', 'sistema elettorale', 'proporzionale', 'maggioritario',
+            'bicameralismo', 'parlamento', 'collegi elettorali', 'quorum'
         ]
     }
 }

@@ -148,6 +148,10 @@ export const StateProvider = ({ children }) => {
             }
         }
 
+        // Client-side safety filter: remove deputies with < 5 speeches
+        const MIN_SPEECHES_DISPLAY = 5;
+        periodDeputies = periodDeputies?.filter(d => d.n_speeches >= MIN_SPEECHES_DISPLAY) || [];
+
         // Filter speeches by period
         const filterByPeriod = (speeches) => {
             if (!speeches) return speeches;

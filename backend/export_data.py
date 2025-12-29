@@ -40,6 +40,7 @@ from backend.config import (
     FETCH_LIMIT,
     SESSIONS_TO_FETCH,
     MIN_WORDS,
+    MIN_SPEECHES_DISPLAY,
     N_CLUSTERS,
     EMBEDDING_MODEL,
     TOPIC_CLUSTERS,
@@ -262,6 +263,9 @@ def compute_deputies_data(
                 deputy_obj['topic_scores'] = [round(float(s), 3) for s in avg_scores]
             
         deputies_data.append(deputy_obj)
+    
+    # Filter deputies with insufficient speeches for display
+    deputies_data = [d for d in deputies_data if d['n_speeches'] >= MIN_SPEECHES_DISPLAY]
     
     return deputies_data
 
