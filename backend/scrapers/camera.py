@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 # Constants
 BASE_URL = "https://www.camera.it"
 DOCS_URL = "https://documenti.camera.it"
-USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 # URL templates
 SESSION_LIST_URL = f"{DOCS_URL}/apps/commonServices/getDocumento.ashx?idLegislatura={{leg}}&sezione=assemblea&tipoDoc=elenco&annomese={{year}},{{month}}"
@@ -65,7 +65,13 @@ def get_session_list(legislature: int = LEGISLATURE, months_back: int = MONTHS_B
     """
     logger.info("Fetching session list from camera.it...")
     
-    headers = {"User-Agent": USER_AGENT}
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1"
+    }
     sessions = []
     
     # Get current date and iterate backwards through months
@@ -162,7 +168,13 @@ def fetch_session_speeches(session_url: str, session_date: str = "") -> list[Spe
     """
     logger.info("Fetching speeches from: %s", session_url)
     
-    headers = {"User-Agent": USER_AGENT}
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1"
+    }
     
     response = requests.get(session_url, headers=headers, timeout=60)
     response.raise_for_status()
