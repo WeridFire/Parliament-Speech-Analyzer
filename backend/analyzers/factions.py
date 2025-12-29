@@ -9,47 +9,11 @@ their party's mainstream.
 import logging
 import numpy as np
 import pandas as pd
-from typing import Optional
-from dataclasses import dataclass
+
+from .relations import compute_party_centroids
 
 logger = logging.getLogger(__name__)
 
-
-@dataclass
-class SenatorProfile:
-    """Profile of a senator's speech patterns relative to party."""
-    name: str
-    party: str
-    n_speeches: int
-    conformity_score: float  # 0-1, how close to party mainstream
-    nearest_other_party: str  # Which other party they're closest to
-    nearest_other_score: float  # How close to that party
-    faction_label: str  # "mainstream", "maverick", "bridge"
-
-
-def compute_party_centroids(
-    df: pd.DataFrame,
-    embeddings: np.ndarray,
-    party_col: str = 'group'
-) -> dict[str, np.ndarray]:
-    """
-    Compute the centroid (average embedding) for each party.
-    
-    Returns dict mapping party_name -> centroid vector
-    """
-    centroids = {}
-    
-    for party in df[party_col].unique():
-        if party == 'Unknown Group':
-            continue
-        
-        party_mask = df[party_col] == party
-        party_embeddings = embeddings[party_mask]
-        
-        if len(party_embeddings) > 0:
-            centroids[party] = np.mean(party_embeddings, axis=0)
-    
-    return centroids
 
 
 def compute_senator_conformity(

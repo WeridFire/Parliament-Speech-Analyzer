@@ -8,8 +8,9 @@ show unexpected alignment in their rhetoric.
 import logging
 import numpy as np
 import pandas as pd
-from typing import Optional
-from collections import defaultdict
+
+
+from .relations import categorize_party_coalition
 
 logger = logging.getLogger(__name__)
 
@@ -138,21 +139,6 @@ def find_unusual_pairs(
     return pairs[:top_n]
 
 
-def categorize_left_right(party: str) -> str:
-    """Categorize party as left, center, or right."""
-    left_parties = {'PD-IDP', 'M5S', 'Misto-AVS', 'Aut (SVP-PATT, Cb)'}
-    right_parties = {'FdI', 'FI-BP-PPE', 'LSP-PSd\'Az'}
-    center_parties = {'IV-C-RE', 'Misto-Az-RE', 'Cd\'I-UDC-NM (NcI, CI, IaC)-MAIE-CP'}
-    
-    for left in left_parties:
-        if left in party or party in left:
-            return 'left'
-    for right in right_parties:
-        if right in party or party in right:
-            return 'right'
-    return 'center'
-
-
 def find_left_right_alliances(
     df: pd.DataFrame,
     embeddings: np.ndarray
@@ -164,11 +150,12 @@ def find_left_right_alliances(
     
     cross_divide = []
     for pair in pairs:
-        cat1 = categorize_left_right(pair['party1'])
-        cat2 = categorize_left_right(pair['party2'])
+        cat1 = categorize_party_coalition(pair['party1'])
+        cat2 = categorize_party_coalition(pair['party2'])
         
         if (cat1 == 'left' and cat2 == 'right') or (cat1 == 'right' and cat2 == 'left'):
             pair['type'] = 'left-right'
             cross_divide.append(pair)
     
     return cross_divide[:10]
+

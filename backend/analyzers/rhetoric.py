@@ -7,8 +7,6 @@ anti-establishment rhetoric, and emotional language.
 
 import logging
 import re
-from typing import Optional
-from collections import Counter
 
 import numpy as np
 import pandas as pd
@@ -95,77 +93,6 @@ def add_rhetoric_scores(df: pd.DataFrame, text_col: str = 'cleaned_text') -> pd.
     return df
 
 
-def compute_rhetoric_profile(
-    df: pd.DataFrame,
-    group_col: str = 'deputy'
-) -> pd.DataFrame:
-    """
-    Compute average rhetoric profile per speaker or party.
-    
-    Returns DataFrame with rhetoric averages per group.
-    """
-    required_cols = ['populist', 'anti_establishment', 'emotional', 'institutional']
-    
-    # Check if scores exist
-    if not all(col in df.columns for col in required_cols):
-        df = add_rhetoric_scores(df)
-    
-    return df.groupby(group_col)[required_cols].mean().reset_index()
-
-
-def find_rhetorical_twins(
-    df: pd.DataFrame,
-    speaker_col: str = 'deputy',
-    party_col: str = 'group',
-    top_n: int = 10
-) -> list[dict]:
-    """
-    Find pairs from different parties with similar rhetorical style.
-    """
-    profiles = compute_rhetoric_profile(df, speaker_col)
-    
-    # Get speaker -> party mapping
-    speaker_party = df.groupby(speaker_col)[party_col].first().to_dict()
-    
-    # Compute pairwise similarity
-    style_cols = ['populist', 'anti_establishment', 'emotional', 'institutional']
-    
-    pairs = []
-    speakers = profiles[speaker_col].tolist()
-    
-    for i, s1 in enumerate(speakers):
-        for s2 in speakers[i+1:]:
-            p1 = speaker_party.get(s1, 'Unknown')
-            p2 = speaker_party.get(s2, 'Unknown')
-            
-            # Skip same party or Unknown
-            if p1 == p2 or p1 == 'Unknown Group' or p2 == 'Unknown Group':
-                continue
-            
-            # Compute style distance
-            v1 = profiles[profiles[speaker_col] == s1][style_cols].values[0]
-            v2 = profiles[profiles[speaker_col] == s2][style_cols].values[0]
-            
-            distance = np.linalg.norm(v1 - v2)
-            similarity = 1 / (1 + distance)
-            
-            # Dominant style
-            dominant1 = style_cols[np.argmax(v1)]
-            dominant2 = style_cols[np.argmax(v2)]
-            
-            pairs.append({
-                'speaker1': s1,
-                'party1': p1,
-                'speaker2': s2,
-                'party2': p2,
-                'style_similarity': similarity,
-                'shared_style': dominant1 if dominant1 == dominant2 else 'mixed'
-            })
-    
-    pairs.sort(key=lambda x: -x['style_similarity'])
-    return pairs[:top_n]
-
-
 def classify_rhetorical_style(row: pd.Series) -> str:
     """Classify a speech into a rhetorical category."""
     scores = {
@@ -181,3 +108,4 @@ def classify_rhetorical_style(row: pd.Series) -> str:
     
     dominant = max(scores, key=scores.get)
     return dominant
+

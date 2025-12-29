@@ -649,20 +649,6 @@ US_THEM_PATTERNS = [
 
 
 # =============================================================================
-# PARTY COALITIONS
-# =============================================================================
-
-# Left-leaning parties
-LEFT_PARTIES = ['PD-IDP', 'M5S', 'AVS', 'Misto-AVS', 'SI-PD', 'Misto-SI']
-
-# Right-leaning parties  
-RIGHT_PARTIES = ['FdI', 'FI-BP-PPE', 'LSP-PSd\'Az', 'Lega', 'NM', 'Cd\'I-NM']
-
-# Center parties
-CENTER_PARTIES = ['IV-C-RE', 'Azione', 'Az-RE', 'Misto']
-
-
-# =============================================================================
 # OUTPUT
 # =============================================================================
 
