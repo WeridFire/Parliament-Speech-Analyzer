@@ -14,7 +14,7 @@ URLs:
 import re
 import logging
 import time
-from typing import Optional
+from typing import Optional, Any
 from dataclasses import dataclass
 
 import requests
@@ -37,6 +37,27 @@ SESSIONS_LIST_URL = f"{BASE_URL}/lavori/assemblea/resoconti-elenco-cronologico"
 SESSION_URL_TEMPLATE = f"{BASE_URL}/show-doc?leg={{leg}}&tipodoc=Resaula&id={{id}}&idoggetto=0&part=doc_dc-ressten_rs"
 
 
+def _get_http_client(use_cloudscraper: bool = False) -> Any:
+    """
+    Factory function to get HTTP client (requests or cloudscraper).
+    
+    Args:
+        use_cloudscraper: If True, use cloudscraper to bypass CloudFront blocking
+    
+    Returns:
+        HTTP client module (requests or cloudscraper)
+    """
+    if use_cloudscraper:
+        try:
+            import cloudscraper
+            logger.info("Using cloudscraper to bypass CloudFront protection")
+            return cloudscraper.create_scraper()
+        except ImportError:
+            logger.warning("cloudscraper not installed, falling back to requests. Install with: pip install cloudscraper")
+            return requests
+    return requests
+
+
 @dataclass
 class Speech:
     """Represents a single speech from a Senate session."""
@@ -51,23 +72,25 @@ class Speech:
     role_category: str = ""  # Category: "governo", "presidenza", "ufficio", "altro"
 
 
-def get_session_list(legislature: int = LEGISLATURE, limit: int = 20) -> list[dict]:
+def get_session_list(legislature: int = LEGISLATURE, limit: int = 20, use_cloudscraper: bool = False) -> list[dict]:
     """
     Fetch the list of available Senate sessions from the chronological list.
     
     Args:
         legislature: Legislature number (default 19 for current)
         limit: Maximum number of sessions to retrieve
+        use_cloudscraper: Use cloudscraper to bypass CloudFront blocking
     
     Returns:
         List of session dictionaries with 'id', 'date', 'url', 'title'
     """
     logger.info(f"Fetching session list from {SESSIONS_LIST_URL}...")
     
+    http_client = _get_http_client(use_cloudscraper)
     headers = {"User-Agent": USER_AGENT}
     
     try:
-        response = requests.get(SESSIONS_LIST_URL, headers=headers, timeout=30)
+        response = http_client.get(SESSIONS_LIST_URL, headers=headers, timeout=30)
         response.raise_for_status()
         
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -144,22 +167,24 @@ def _extract_date_from_context(link_element, title: str) -> str:
 
 
 @retry(max_attempts=3, delay=1.0, exceptions=(requests.exceptions.RequestException,))
-def fetch_session_speeches(session_url: str, session_date: str = "") -> list[Speech]:
+def fetch_session_speeches(session_url: str, session_date: str = "", use_cloudscraper: bool = False) -> list[Speech]:
     """
     Fetch all speeches from a single Senate session's stenographic report.
     
     Args:
         session_url: URL to the stenographic report
         session_date: Date of the session
+        use_cloudscraper: Use cloudscraper to bypass CloudFront blocking
     
     Returns:
         List of Speech objects
     """
     logger.info(f"Fetching speeches from: {session_url}")
     
+    http_client = _get_http_client(use_cloudscraper)
     headers = {"User-Agent": USER_AGENT}
     
-    response = requests.get(session_url, headers=headers, timeout=60)
+    response = http_client.get(session_url, headers=headers, timeout=60)
     response.raise_for_status()
     
     soup = BeautifulSoup(response.text, 'html.parser')
@@ -288,13 +313,14 @@ def _parse_speeches_from_html(soup: BeautifulSoup, session_date: str, session_ur
 
 
 
-def fetch_speeches(limit: int = 200, sessions_to_fetch: int = 5) -> pd.DataFrame:
+def fetch_speeches(limit: int = 200, sessions_to_fetch: int = 5, use_cloudscraper: bool = False) -> pd.DataFrame:
     """
     Main function to fetch speeches from multiple sessions.
     
     Args:
         limit: Maximum total speeches to return
         sessions_to_fetch: Number of sessions to scrape
+        use_cloudscraper: Use cloudscraper to bypass CloudFront blocking
     
     Returns:
         DataFrame with columns: date, deputy, group, text
@@ -302,7 +328,7 @@ def fetch_speeches(limit: int = 200, sessions_to_fetch: int = 5) -> pd.DataFrame
     logger.info(f"Starting Senate speech scraping (limit={limit}, sessions={sessions_to_fetch})...")
     
     # Get session list
-    sessions = get_session_list(legislature=LEGISLATURE, limit=sessions_to_fetch)
+    sessions = get_session_list(legislature=LEGISLATURE, limit=sessions_to_fetch, use_cloudscraper=use_cloudscraper)
     
     if not sessions:
         logger.warning("No sessions found. Returning empty DataFrame.")
@@ -313,7 +339,8 @@ def fetch_speeches(limit: int = 200, sessions_to_fetch: int = 5) -> pd.DataFrame
     for session in sessions:
         speeches = fetch_session_speeches(
             session['url'], 
-            session_date=session.get('date', 'Unknown')
+            session_date=session.get('date', 'Unknown'),
+            use_cloudscraper=use_cloudscraper
         )
         
         for speech in speeches:

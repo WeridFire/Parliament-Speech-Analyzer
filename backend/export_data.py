@@ -344,7 +344,7 @@ def compute_deputies_by_period(
     }
 
 
-def main(force_refetch: bool = False, force_reembed: bool = False, n_clusters_override: int = None, source: str = None, use_transformer_sentiment: bool = False):
+def main(force_refetch: bool = False, force_reembed: bool = False, n_clusters_override: int = None, source: str = None, use_transformer_sentiment: bool = False, use_cloudscraper: bool = False):
     # Use override or config values
     n_clusters = n_clusters_override if n_clusters_override else N_CLUSTERS
     data_source = source if source else DATA_SOURCE
@@ -360,7 +360,7 @@ def main(force_refetch: bool = False, force_reembed: bool = False, n_clusters_ov
         
     if df is None:
         logger.info("Fetching speeches (source=%s)...", data_source)
-        df = fetch_all_speeches(source=data_source, limit=FETCH_LIMIT, sessions_to_fetch=SESSIONS_TO_FETCH)
+        df = fetch_all_speeches(source=data_source, limit=FETCH_LIMIT, sessions_to_fetch=SESSIONS_TO_FETCH, use_cloudscraper=use_cloudscraper)
         
         if df.empty:
             logger.error("No data fetched")
@@ -680,6 +680,8 @@ Examples:
                         help=f'Number of K-Means clusters (default: {N_CLUSTERS} from config)')
     parser.add_argument('--transformer-sentiment', action='store_true',
                         help='Use transformer model for sentiment (slower but more accurate)')
+    parser.add_argument('--cloudscraper', action='store_true',
+                        help='Use cloudscraper library to bypass CloudFront blocking (for Colab/data centers)')
     
     # Cache management
     parser.add_argument('--cache-info', action='store_true', help='Show cache status and exit')
@@ -711,5 +713,6 @@ Examples:
         force_reembed=args.reembed, 
         n_clusters_override=args.clusters, 
         source=args.source,
-        use_transformer_sentiment=args.transformer_sentiment
+        use_transformer_sentiment=args.transformer_sentiment,
+        use_cloudscraper=args.cloudscraper
     )
