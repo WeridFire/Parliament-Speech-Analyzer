@@ -1,100 +1,159 @@
 """
-Shared pytest fixtures for backend tests.
+Test Configuration - Shared pytest fixtures and settings.
 """
+
 import pytest
-import numpy as np
-import pandas as pd
+import sys
 from pathlib import Path
 
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from backend.tests.fixtures import MockData, get_mock_data, reset_mock_data
+import numpy as np
+import pandas as pd
+
+
+# =============================================================================
+# PYTEST CONFIGURATION
+# =============================================================================
+
+def pytest_configure(config):
+    """Register custom markers."""
+    config.addinivalue_line("markers", "slow: mark test as slow to run")
+
+
+# =============================================================================
+# PYTEST FIXTURES
+# =============================================================================
+
+@pytest.fixture(scope="session")
+def mock_data() -> MockData:
+    """
+    Session-scoped mock data fixture.
+    
+    Reused across all tests in the session for efficiency.
+    """
+    return MockData()
+
+
+@pytest.fixture(scope="function")
+def fresh_mock_data() -> MockData:
+    """
+    Function-scoped mock data fixture.
+    
+    Creates fresh mock data for each test function.
+    """
+    return MockData()
+
+
+@pytest.fixture(scope="session")
+def mock_df(mock_data):
+    """Mock DataFrame fixture."""
+    return mock_data.df
+
+
+@pytest.fixture(scope="session")
+def mock_embeddings(mock_data):
+    """Mock embeddings fixture."""
+    return mock_data.embeddings
+
+
+@pytest.fixture(scope="session")
+def mock_cluster_centroids(mock_data):
+    """Mock cluster centroids fixture."""
+    return mock_data.cluster_centroids
+
+
+@pytest.fixture(scope="session")
+def mock_cluster_labels(mock_data):
+    """Mock cluster labels fixture."""
+    return mock_data.cluster_labels
+
+
+@pytest.fixture(scope="session")
+def analyzer_kwargs(mock_data):
+    """Common kwargs for analyzer initialization."""
+    return mock_data.get_analyzer_kwargs()
+
 
 @pytest.fixture
-def sample_speeches_df():
-    """DataFrame with sample speeches for testing."""
-    return pd.DataFrame([
-        {
-            'deputy': 'ROSSI [PD-IDP]',
-            'group': 'PD-IDP',
-            'text': 'Signor Presidente, il governo deve agire con urgenza sulla questione economica.',
-            'cleaned_text': 'il governo deve agire con urgenza sulla questione economica',
-            'date': '2024-12-01',
-            'source': 'senate'
-        },
-        {
-            'deputy': 'BIANCHI [FdI]',
-            'group': 'FdI',
-            'text': 'La nostra proposta di legge mira a ridurre le tasse per le famiglie italiane.',
-            'cleaned_text': 'nostra proposta legge mira ridurre tasse famiglie italiane',
-            'date': '2024-12-01',
-            'source': 'senate'
-        },
-        {
-            'deputy': 'VERDI [M5S]',
-            'group': 'M5S',
-            'text': 'Dobbiamo proteggere l\'ambiente e investire nelle energie rinnovabili.',
-            'cleaned_text': 'dobbiamo proteggere ambiente investire energie rinnovabili',
-            'date': '2024-12-02',
-            'source': 'camera'
-        },
-        {
-            'deputy': 'NERI [IV-C-RE]',
-            'group': 'IV-C-RE',
-            'text': 'La riforma della giustizia è una priorità per questo parlamento.',
-            'cleaned_text': 'riforma giustizia priorità parlamento',
-            'date': '2024-12-02',
-            'source': 'camera'
-        },
-    ])
-
-
-@pytest.fixture
-def sample_embeddings():
-    """Fake embeddings for testing (4 speeches, 384 dims like MiniLM)."""
-    np.random.seed(42)  # Reproducible
-    return np.random.rand(4, 384).astype(np.float32)
-
-
-@pytest.fixture
-def sample_embeddings_clustered():
-    """Embeddings designed to form 2 clear clusters."""
+def sample_embeddings() -> np.ndarray:
+    """
+    Small sample embeddings for pipeline tests.
+    Shape: (10, 50)
+    """
     np.random.seed(42)
-    # Cluster 1: speeches 0, 1
-    cluster1 = np.random.rand(2, 384) * 0.1
-    # Cluster 2: speeches 2, 3
-    cluster2 = np.random.rand(2, 384) * 0.1 + 0.9
-    return np.vstack([cluster1, cluster2]).astype(np.float32)
+    return np.random.rand(10, 50).astype(np.float32)
 
 
 @pytest.fixture
-def camera_html_sample():
-    """Sample HTML from Camera stenographic report."""
+def sample_speeches_df() -> pd.DataFrame:
+    """
+    Small sample DataFrame for pipeline tests.
+    """
+    return pd.DataFrame({
+        'deputy': [f'Deputy {i}' for i in range(10)],
+        'group': ['Party A'] * 5 + ['Party B'] * 5,
+        'text': [f'Speech text {i}' for i in range(10)],
+        'date': '2024-01-01'
+    })
+
+
+@pytest.fixture
+def camera_html_sample() -> str:
+    """Sample HTML for Camera parsing tests."""
     return """
     <div class="sezione">
-        <p><a href="#">ROSSI MARCO</a> (PD-IDP). Signor Presidente, questa proposta 
-        è fondamentale per il futuro del paese. Dobbiamo agire con decisione.</p>
-        <p><a href="#">BIANCHI LUIGI</a> (FdI). Non sono d'accordo con il collega. 
-        La nostra posizione è chiara: prima gli italiani.</p>
-        <p><a href="#">PRESIDENTE</a>. Grazie, onorevole. La seduta è sospesa.</p>
+        <p>
+            <a href="#">MELONI</a> (FDI). Signor Presidente, questo è un intervento di prova.
+            (Applausi dei deputati del gruppo Fratelli d'Italia).
+        </p>
+        <p>
+            <a href="#">SCHLEIN</a> (PD-IDP). Presidente, non siamo d'accordo.
+        </p>
+        <p>
+            <a href="#">PRESIDENTE</a>. La seduta è tolta.
+        </p>
     </div>
     """
 
 
 @pytest.fixture
-def senate_html_sample():
-    """Sample HTML from Senate stenographic report."""
+def senate_html_sample() -> str:
+    """Sample HTML for Senate parsing tests."""
     return """
-    <div>
-        <p>BOCCIA (PD-IDP). Signora Presidente, vorrei sottolineare l'importanza 
-        di questa misura per le famiglie italiane. (Applausi)</p>
-        <p>PRESIDENTE. Ha facoltà di parlare il senatore Gasparri.</p>
-        <p>GASPARRI (FdI). Grazie, Presidente. Il nostro gruppo voterà a favore 
-        di questo emendamento. (Commenti)</p>
+    <div class="ressten">
+        <p>MELONI (FDI). Signor Presidente, intervenendo in questa seduta...</p>
+        <p>RENZI (IV-C-RE). Vorrei sottolineare un punto fondamentale.</p>
+        <p>PRESIDENTE. Ha chiesto di parlare il senatore...</p>
     </div>
     """
 
 
-@pytest.fixture
-def temp_cache_dir(tmp_path):
-    """Temporary cache directory for testing."""
-    cache_dir = tmp_path / ".cache"
-    cache_dir.mkdir()
-    return cache_dir
+# =============================================================================
+# TEST HELPERS
+# =============================================================================
+
+def assert_valid_result(result: dict, required_keys: list[str] = None):
+    """Assert that result is a valid non-empty dict."""
+    assert isinstance(result, dict), f"Expected dict, got {type(result)}"
+    assert len(result) > 0, "Result should not be empty"
+    
+    if required_keys:
+        for key in required_keys:
+            assert key in result, f"Missing required key: {key}"
+
+
+def assert_valid_score(score: float, min_val: float = 0, max_val: float = 100):
+    """Assert that score is within expected range."""
+    assert isinstance(score, (int, float)), f"Expected number, got {type(score)}"
+    assert min_val <= score <= max_val, f"Score {score} not in range [{min_val}, {max_val}]"
+
+
+def assert_valid_speaker_data(data: dict, mock_data: MockData):
+    """Assert that speaker data contains valid speaker names."""
+    for speaker in data.keys():
+        if speaker not in ('rankings', 'by_topic', 'topic_leaders', 'error'):
+            assert speaker in mock_data.df['deputy'].values, f"Unknown speaker: {speaker}"

@@ -1,0 +1,86 @@
+# Analyzer Configuration
+# ======================
+# Control which analyzers and features are enabled.
+# Set enabled: false to skip an analyzer entirely.
+# Set features.X: false to skip specific sub-features.
+
+# Identity Analyzer - Political identity and DNA
+identity:
+  enabled: true
+  features:
+    thematic_fingerprint: true   # Radar chart of topic affinity
+    generalism_index: true       # Entropy-based specialization score
+    distinctive_keywords: true   # TF-IDF distinctive terms per party
+
+# Sentiment Analyzer - Qualitative analysis
+sentiment:
+  enabled: true
+  use_transformer: false         # If true, uses transformer model (slower, more accurate)
+  features:
+    topic_sentiment: true        # Sentiment per topic cluster
+    readability: true            # Gulpease readability score
+    polarization: true           # "Us vs Them" analysis
+    party_topic_sentiment: true  # Party × Topic sentiment matrix
+    sentiment_rankings: true     # Most positive/negative per topic
+
+# Temporal Analyzer - Evolution over time
+temporal:
+  enabled: true
+  granularity: month             # 'month' or 'week'
+  features:
+    topic_trends: true           # Topic distribution over time
+    semantic_drift: true         # How party positions shift
+    crisis_index: true           # Alarm term frequency
+    topic_surfing: true          # Politicians who rapidly change focus
+
+# Relations Analyzer - Party relationships
+relations:
+  enabled: true
+  features:
+    affinity_matrix: true        # Party similarity heatmap
+    party_cohesion: true         # Internal party coherence
+    thematic_overlap: true       # Bipartisan vs polarized topics
+    cross_party_pairs: true      # Similar speakers from different parties
+
+# Speaker Analyzer - Per-politician statistics
+speaker:
+  enabled: true
+  features:
+    verbosity: true              # Words per speech, sentence length
+    linguistic: true             # Questions, negations, self-reference
+    consistency: true            # Thematic consistency over time
+    topic_leadership: true       # Who "leads" each topic
+    intervention_patterns: true  # Activity regularity
+    vocabulary: true             # Lexical richness
+    network: true                # Mention network
+    entity_focus: false          # NER-based (slow, requires spaCy)
+
+# Rhetoric Analyzer - Speech style patterns
+rhetoric:
+  enabled: true
+  features:
+    populist: true               # Populist rhetoric markers
+    anti_establishment: true     # Anti-system language
+    emotional: true              # Emotional intensity
+    institutional: true          # Formal/institutional language
+
+# Factions Analyzer - Internal party divisions
+factions:
+  enabled: true
+  features:
+    conformity: true             # How aligned to party line
+    faction_detection: true      # Maverick/mainstream/bridge labels
+
+# Alliances Analyzer - Cross-party themes
+alliances:
+  enabled: true
+  features:
+    transversal_clusters: true   # Topics with high cross-party mixing
+    unusual_pairs: true          # Similar speakers from opposing parties
+    left_right_alliances: true   # Specific left-right crossovers
+
+# Topics Analyzer - Cluster labeling
+topics:
+  enabled: true
+  use_pos_filtering: true        # Use SpaCy POS tags for keyword filtering
+  top_n_keywords: 5              # Number of keywords per cluster

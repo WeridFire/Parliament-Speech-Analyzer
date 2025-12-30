@@ -10,3 +10,4 @@ from .cache import (
     show_cache_info,
     CACHE_DIR
 )
+from .network import get_http_client

@@ -44,6 +44,7 @@ from .transformer_sentiment import (
     compute_topic_sentiment_transformer,
     is_transformer_available
 )
+from .speaker_stats import compute_all_speaker_stats
 
 logger = logging.getLogger(__name__)
 
@@ -428,6 +429,57 @@ class PoliticalAnalytics:
         
         return result
     
+    def compute_speaker_metrics(self, include_ner: bool = False) -> dict:
+        """
+        Compute detailed per-speaker statistics.
+        
+        Args:
+            include_ner: Whether to run NER-based entity extraction (slow)
+        
+        Returns:
+            {
+                'by_speaker': {
+                    speaker_name: {
+                        'verbosity': {...},
+                        'linguistic': {...},
+                        'consistency': {...},
+                        'topic_leadership': {...},
+                        'intervention_patterns': {...},
+                        'vocabulary': {...},
+                        'network': {...},
+                    },
+                    ...
+                },
+                'rankings': {
+                    'most_verbose': [...],
+                    'most_consistent': [...],
+                    ...
+                }
+            }
+        """
+        cache_key = f'speaker_stats_{include_ner}'
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        
+        logger.info("Computing speaker statistics...")
+        
+        result = compute_all_speaker_stats(
+            df=self.df,
+            embeddings=self.embeddings,
+            cluster_centroids=self.cluster_centroids,
+            cluster_labels=self.cluster_labels,
+            speaker_col=self.speaker_col,
+            text_col=self.text_col,
+            date_col=self.date_col,
+            party_col=self.party_col,
+            include_ner=include_ner
+        )
+        
+        self._cache[cache_key] = result
+        logger.info("Speaker statistics computed")
+        
+        return result
+    
     def get_all_metrics(self, granularity: str = 'month') -> dict:
         """
         Compute and return all analytics metrics.
@@ -547,7 +599,8 @@ class PoliticalAnalytics:
             'identity': self.compute_identity_metrics(),
             'relations': self.compute_relationship_metrics(),
             'temporal': self.compute_temporal_metrics(granularity),
-            'qualitative': self.compute_qualitative_metrics()
+            'qualitative': self.compute_qualitative_metrics(),
+            'speaker_stats': self.compute_speaker_metrics(include_ner=False)
         }
         
         # 2. Extract available periods

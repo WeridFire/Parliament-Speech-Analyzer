@@ -2,156 +2,75 @@
 Camera dei Deputati Speech Scraper - Resoconto Stenografico
 
 This module scrapes full parliamentary speeches from camera.it.
-It fetches the "Resoconto Stenografico" (stenographic reports) which contain
-the complete verbatim transcripts of Chamber of Deputies sessions.
-
-URLs:
-- Session list: https://documenti.camera.it/apps/commonServices/getDocumento.ashx?idLegislatura=19&sezione=assemblea&tipoDoc=elenco&annomese=YYYY,MM
-- Stenographic: https://documenti.camera.it/apps/commonServices/getDocumento.ashx?idLegislatura=19&sezione=assemblea&tipoDoc=stenografico&idSeduta=XXXX
 """
 
 import re
 import logging
 import time
-from typing import Optional, Any
-from dataclasses import dataclass
 from datetime import datetime, timedelta
-
-import requests
-from bs4 import BeautifulSoup
 import pandas as pd
+from bs4 import BeautifulSoup
 
 from backend.config import LEGISLATURE, MONTHS_BACK
 from backend.utils import retry
-from backend.config_roles import build_role_pattern, normalize_role, get_role_category
+from backend.config.roles import build_role_pattern, normalize_role, get_role_category
+from backend.scrapers.utils import (
+    Speech, get_http_client, validate_participant, normalize_name, USER_AGENT
+)
 
 logger = logging.getLogger(__name__)
 
 # Constants
 BASE_URL = "https://www.camera.it"
 DOCS_URL = "https://documenti.camera.it"
-USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 # URL templates
 SESSION_LIST_URL = f"{DOCS_URL}/apps/commonServices/getDocumento.ashx?idLegislatura={{leg}}&sezione=assemblea&tipoDoc=elenco&annomese={{year}},{{month}}"
 STENOGRAPHIC_URL = f"{BASE_URL}/leg{{leg}}/410?idSeduta={{session_id}}&tipo=stenografico"
 
 
-def _get_http_client(use_cloudscraper: bool = False) -> Any:
-    """
-    Factory function to get HTTP client (requests or cloudscraper).
-    
-    Args:
-        use_cloudscraper: If True, use cloudscraper to bypass CloudFront blocking
-    
-    Returns:
-        HTTP client module (requests or cloudscraper)
-    """
-    if use_cloudscraper:
-        try:
-            import cloudscraper
-            logger.info("Using cloudscraper to bypass CloudFront protection")
-            return cloudscraper.create_scraper()
-        except ImportError:
-            logger.warning("cloudscraper not installed, falling back to requests. Install with: pip install cloudscraper")
-            return requests
-    return requests
-
-
-@dataclass
-class Speech:
-    """Represents a single speech from a Chamber session."""
-    speaker: str
-    party: str
-    text: str
-    date: str
-    session_number: int
-    url: str  # Direct link to the speech/session
-    notes: list  # Parliamentary notes like (Applausi), (Interruzioni)
-    role: str = ""  # Government/institutional role (e.g., "ministro", "presidente")
-    role_category: str = ""  # Category: "governo", "presidenza", "ufficio", "altro"
-
-
 def get_session_list(legislature: int = LEGISLATURE, months_back: int = MONTHS_BACK, limit: int = 20, use_cloudscraper: bool = False) -> list[dict]:
-    """
-    Fetch the list of available Chamber sessions from recent months.
-    
-    Args:
-        legislature: Legislature number (default 19 for current)
-        months_back: How many months to look back
-        limit: Maximum number of sessions to retrieve
-        use_cloudscraper: Use cloudscraper to bypass CloudFront blocking
-    
-    Returns:
-        List of session dictionaries with 'id', 'date', 'url'
-    """
+    """Fetch the list of available Chamber sessions from recent months."""
     logger.info("Fetching session list from camera.it...")
     
-    http_client = _get_http_client(use_cloudscraper)
-    
-    headers = {
-        "User-Agent": USER_AGENT,
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1"
-    }
+    http_client = get_http_client(use_cloudscraper)
     sessions = []
-    
-    # Get current date and iterate backwards through months
     current_date = datetime.now()
     
     for i in range(months_back):
         target_date = current_date - timedelta(days=30 * i)
-        year = target_date.year
-        month = target_date.month
-        
-        url = SESSION_LIST_URL.format(leg=legislature, year=year, month=month)
-        logger.debug("Fetching session list for %d/%d", month, year)
+        year, month = target_date.year, target_date.month
         
         try:
-            response = http_client.get(url, headers=headers, timeout=30)
+            url = SESSION_LIST_URL.format(leg=legislature, year=year, month=month)
+            response = http_client.get(url, headers={"User-Agent": USER_AGENT}, timeout=30)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Look for session links - pattern: idSeduta=XXXX
             for link in soup.find_all('a', href=True):
                 href = link.get('href', '')
-                
-                # Match links to stenographic reports
                 if 'idSeduta=' in href and 'stenografico' in href.lower():
-                    session_match = re.search(r'idSeduta=(\d+)', href)
-                    if session_match:
-                        session_id = session_match.group(1)
-                        
-                        # Check for duplicates
-                        if any(s['id'] == session_id for s in sessions):
-                            continue
-                        
-                        # Extract date from link text or context
-                        date = _extract_date_from_context(link, year, month)
+                    m = re.search(r'idSeduta=(\d+)', href)
+                    if m:
+                        session_id = m.group(1)
+                        if any(s['id'] == session_id for s in sessions): continue
                         
                         sessions.append({
                             'id': session_id,
                             'url': STENOGRAPHIC_URL.format(leg=legislature, session_id=session_id),
-                            'date': date
+                            'date': _extract_date_from_context(link, year, month)
                         })
-                
         except Exception as e:
-            logger.warning("Error fetching session list for %d/%d: %s", month, year, e)
+            logger.warning(f"Error fetching sessions for {month}/{year}: {e}")
             continue
         
-        time.sleep(0.5)  # Be respectful
-    
-    # Sort sessions by date (oldest first) to get a good temporal distribution
+        time.sleep(0.5)
+
     sessions.sort(key=lambda x: x.get('date', ''))
-    
-    # Apply limit AFTER collecting from all months
     if limit and len(sessions) > limit:
         sessions = sessions[:limit]
     
-    logger.info("Found %d sessions from camera.it", len(sessions))
+    logger.info(f"Found {len(sessions)} sessions from camera.it")
     return sessions
 
 
@@ -160,354 +79,176 @@ def _extract_date_from_context(link_element, year: int, month: int) -> str:
     text = link_element.get_text(strip=True)
     
     # Try pattern: "Seduta n. XXX Lunedì DD"
-    day_match = re.search(r'(\d{1,2})\s*$', text)
-    if day_match:
-        day = int(day_match.group(1))
-        return f"{year}-{month:02d}-{day:02d}"
+    if m := re.search(r'(\d{1,2})\s*$', text):
+        return f"{year}-{month:02d}-{int(m.group(1)):02d}"
     
     # Try parent elements
     parent = link_element.find_parent(['tr', 'li', 'div'])
     if parent:
         parent_text = parent.get_text()
-        date_pattern = r'(Lunedì|Martedì|Mercoledì|Giovedì|Venerdì|Sabato|Domenica)\s+(\d{1,2})'
-        match = re.search(date_pattern, parent_text, re.IGNORECASE)
-        if match:
-            day = int(match.group(2))
-            return f"{year}-{month:02d}-{day:02d}"
+        m = re.search(r'(Lunedì|Martedì|Mercoledì|Giovedì|Venerdì|Sabato|Domenica)\s+(\d{1,2})', parent_text, re.IGNORECASE)
+        if m:
+            return f"{year}-{month:02d}-{int(m.group(2)):02d}"
     
-    return f"{year}-{month:02d}-01"  # Default to first of month
+    return f"{year}-{month:02d}-01"
 
 
-@retry(max_attempts=3, delay=1.0, exceptions=(requests.exceptions.RequestException,))
+@retry(max_attempts=3, delay=1.0)
 def fetch_session_speeches(session_url: str, session_date: str = "", use_cloudscraper: bool = False) -> list[Speech]:
-    """
-    Fetch all speeches from a single Chamber session's stenographic report.
+    """Fetch all speeches from a single Chamber session's stenographic report."""
+    logger.info(f"Fetching speeches from: {session_url}")
     
-    Args:
-        session_url: URL to the stenographic report
-        session_date: Date of the session
-        use_cloudscraper: Use cloudscraper to bypass CloudFront blocking
-    
-    Returns:
-        List of Speech objects
-    """
-    logger.info("Fetching speeches from: %s", session_url)
-    
-    http_client = _get_http_client(use_cloudscraper)
-    
-    headers = {
-        "User-Agent": USER_AGENT,
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1"
-    }
-    
-    response = http_client.get(session_url, headers=headers, timeout=60)
+    http_client = get_http_client(use_cloudscraper)
+    response = http_client.get(session_url, headers={"User-Agent": USER_AGENT}, timeout=60)
     response.raise_for_status()
     
-    soup = BeautifulSoup(response.text, 'html.parser')
-    
-    # Parse speeches from content
-    speeches = _parse_speeches_from_html(soup, session_date, session_url)
-    
-    logger.info("Extracted %d speeches from session", len(speeches))
+    speeches = _parse_speeches_from_html(BeautifulSoup(response.text, 'html.parser'), session_date, session_url, use_cloudscraper=use_cloudscraper)
+    logger.info(f"Extracted {len(speeches)} speeches from session")
     return speeches
 
 
-def _parse_speeches_from_html(soup: BeautifulSoup, session_date: str, session_url: str) -> list[Speech]:
-    """
-    Parse speech content from the stenographic report HTML.
-    
-    Camera.it format has speakers as links followed by party:
-    - <a href="...">NOME COGNOME</a> (PARTITO). speech text...
-    - <a href="...">PRESIDENTE</a>. speech text...
-    """
+def _parse_speeches_from_html(soup: BeautifulSoup, session_date: str, session_url: str, use_cloudscraper: bool = False) -> list[Speech]:
+    """Parse speech content from the stenographic report HTML."""
     speeches = []
-    
-    # Get all text content
-    # Camera.it uses specific div/section for stenographic content
     main_content = soup.find('div', class_='sezione') or soup.find('main') or soup
     
-    # Get raw HTML and parse speech blocks
-    html_text = str(main_content)
-    
-    # Pattern to match speaker blocks in the HTML
-    # Matches: <a...>SPEAKER NAME</a> (PARTY). text  OR  <a...>PRESIDENTE</a>. text
-    speech_pattern = re.compile(
-        r'<a[^>]*>([A-Z][A-Z\s\'\-]+(?:\s+[A-Za-z]+)*)</a>\s*(?:\(([^)]+)\))?\s*[\.,:]\s*([^<]+)',
-        re.IGNORECASE
-    )
-    
-    # Also try to get from plain text paragraphs
-    paragraphs = main_content.find_all(['p', 'div'])
-    
-    # Regex patterns for text-based fallback (similar to Senate)
-    # Pattern: SURNAME, role. text (e.g., MELONI, Presidente del Consiglio. ...)
+    # Patterns
     role_pattern_str = build_role_pattern()
-    role_fallback_pattern = re.compile(
-        rf'^([A-Z][A-Z\-\']+(?:\s+[A-Z][A-Z\-\']+)?),\s*({role_pattern_str})[^.]*\.\s*(.+)',
-        re.IGNORECASE | re.DOTALL
-    )
-    
-    # Pattern: SURNAME (PARTY). text
-    party_fallback_pattern = re.compile(
-        r'^([A-Z][A-Z\-\']+(?:\s+[A-Z][A-Z\-\']+)?)\s*\(([^)]+)\)\.\s+(.+)',
-        re.DOTALL
-    )
+    role_fallback_pattern = re.compile(rf'^([A-Z][A-Z\-\']+(?:\s+[A-Z][A-Z\-\']+)?),\s*({role_pattern_str})[^.]*\.\s*(.+)', re.IGNORECASE | re.DOTALL)
+    party_fallback_pattern = re.compile(r'^([A-Z][A-Z\-\']+(?:\s+[A-Z][A-Z\-\']+)?)\s*\(([^)]+)\)\.\s+(.+)', re.DOTALL)
 
-    for p in paragraphs:
-        # Get text with preserved structure
+    for p in main_content.find_all(['p', 'div']):
         text = p.get_text(separator=' ', strip=True)
-        
-        if not text or len(text) < 30:
-            continue
+        if not text or len(text) < 30: continue
         
         speaker_found = False
         
         # 1. Try generic <a href> link detection (Standard Camera format)
-        links = p.find_all('a')
-        for link in links:
+        for link in p.find_all('a'):
             link_text = link.get_text(strip=True)
-            
-            # Skip non-speaker links
-            if not link_text or len(link_text) < 3:
-                continue
-            if not link_text[0].isupper() and link_text not in ['Presidente']:
+            if not link_text or len(link_text) < 3 or (not link_text[0].isupper() and link_text not in ['Presidente']):
                 continue
                 
             name = link_text.strip()
+            full_text = p.get_text()
+            name_pos = full_text.find(name)
+            if name_pos == -1: continue
             
-            # Get text after this link
-            try:
-                full_text = p.get_text()
-                name_pos = full_text.find(name)
-                if name_pos == -1:
-                    continue
-                
-                remaining = full_text[name_pos + len(name):].strip()
-                
-                # Check for party in parentheses
-                party = ""
-                party_match = re.match(r'\s*\(([^)]+)\)', remaining)
-                if party_match:
-                    party = party_match.group(1).strip()
-                    remaining = remaining[party_match.end():].strip()
-                
-                # Check for role (e.g., ", Ministro della...")
-                role = ""
-                role_cat = ""
-                
-                # Match: comma, whitespace, ROLE, any chars until dot or end
-                role_match = re.match(rf'^\s*,\s*({role_pattern_str})[^.]*', remaining, re.IGNORECASE)
-                
-                if role_match:
-                    role = normalize_role(role_match.group(1))
-                    role_cat = get_role_category(role)
-                    remaining = remaining[role_match.end():].strip()
+            remaining = full_text[name_pos + len(name):].strip()
+            
+            # Check for party in parentheses
+            party = ""
+            if m := re.match(r'\s*\(([^)]+)\)', remaining):
+                party = m.group(1).strip()
+                remaining = remaining[m.end():].strip()
+            
+            # Check for role
+            role, role_cat = "", ""
+            if m := re.match(rf'^\s*,\s*({role_pattern_str})[^.]*', remaining, re.IGNORECASE):
+                role = normalize_role(m.group(1))
+                role_cat = get_role_category(role)
+                remaining = remaining[m.end():].strip()
 
-                # Remove leading punctuation
-                remaining = re.sub(r'^[\.,:]\s*', '', remaining)
+            remaining = re.sub(r'^[\.,:]\s*', '', remaining)
+            
+            if len(remaining) > 30:
+                notes = re.findall(r'\(([^)]+)\)', remaining)
+                clean_text = re.sub(r'\([^)]*\)', '', remaining).strip()
                 
-                if len(remaining) > 30:
-                    # Clean notes
-                    notes = re.findall(r'\(([^)]+)\)', remaining)
-                    clean_text = re.sub(r'\([^)]*\)', '', remaining).strip()
-                    
-                    if len(clean_text) > 20:
-                        if name in ['PRESIDENTE', 'Presidente']:
-                             speeches.append(Speech(
-                                speaker='PRESIDENTE',
-                                party='',
-                                text=clean_text,
-                                date=session_date,
-                                session_number=0,
-                                url=session_url,
-                                notes=notes,
-                                role="presidente",
-                                role_category="presidenza"
-                            ))
+                if len(clean_text) > 20:
+                    profile_url = ""
+                    # Validate
+                    if name in ['PRESIDENTE', 'Presidente']:
+                        speaker, role, role_cat = "PRESIDENTE", "presidente", "presidenza"
+                    else:
+                        info = validate_participant(name, party, source_type='camera', use_cloudscraper=use_cloudscraper)
+                        if info:
+                            name, party, profile_url = info['name'], info['party'], info['profile_url']
                         else:
-                            speeches.append(Speech(
-                                speaker=name,
-                                party=party,
-                                text=clean_text,
-                                date=session_date,
-                                session_number=0,
-                                url=session_url,
-                                notes=notes,
-                                role=role,
-                                role_category=role_cat
-                            ))
-                        speaker_found = True
-                        break 
-            except Exception as e:
-                logger.debug("Failed to parse speech from link: %s", e)
-                continue
-        
-        if speaker_found:
-            continue
+                            continue # Skip non-validated in strict link mode
 
-        # 2. Fallback: Check for text-based patterns (Ministry/Role)
-        # e.g. "MELONI, Presidente del Consiglio. ..."
-        match = role_fallback_pattern.match(text)
-        if match:
-            speaker = match.group(1).strip()
-            role = normalize_role(match.group(2))
+                    speeches.append(Speech(
+                        speaker=name, party=party, text=clean_text, date=session_date,
+                        session_number=0, url=session_url, notes=notes,
+                        role=role, role_category=role_cat, profile_url=profile_url
+                    ))
+                    speaker_found = True
+                    break
+        
+        if speaker_found: continue
+
+        # 2. Fallback: Role Pattern
+        if m := role_fallback_pattern.match(text):
+            speaker, role, speech_text = m.groups()
+            role = normalize_role(role)
             role_cat = get_role_category(role)
-            speech_text = match.group(3).strip()
             
-            # Extract notes
             notes = re.findall(r'\(([^)]+)\)', speech_text)
             clean_text = re.sub(r'\([^)]*\)', '', speech_text).strip()
             
             if len(clean_text) > 20:
-                speeches.append(Speech(
-                    speaker=speaker,
-                    party="Governo" if role_cat == "governo" else "",
-                    text=clean_text,
-                    date=session_date,
-                    session_number=0,
-                    url=session_url,
-                    notes=notes,
-                    role=role,
-                    role_category=role_cat
-                ))
-                continue
+                info = validate_participant(speaker, "", use_cloudscraper=use_cloudscraper)
+                if info or role_cat == "governo":
+                     speeches.append(Speech(
+                        speaker=info['name'] if info else speaker,
+                        party="Governo" if role_cat == "governo" else "",
+                        text=clean_text, date=session_date, session_number=0, url=session_url,
+                        notes=notes, role=role, role_category=role_cat,
+                        profile_url=info.get('profile_url', '') if info else ''
+                    ))
+            continue
 
-        # 3. Fallback: Check for text-based patterns (Party)
-        # e.g. "CONTE (M5S). ..."
-        match = party_fallback_pattern.match(text)
-        if match:
-            speaker = match.group(1).strip()
-            party = match.group(2).strip()
-            speech_text = match.group(3).strip()
-            
+        # 3. Fallback: Party Pattern
+        if m := party_fallback_pattern.match(text):
+            speaker, party, speech_text = m.groups()
             notes = re.findall(r'\(([^)]+)\)', speech_text)
             clean_text = re.sub(r'\([^)]*\)', '', speech_text).strip()
             
             if len(clean_text) > 20 and speaker.isupper():
-                speeches.append(Speech(
-                    speaker=speaker,
-                    party=party,
-                    text=clean_text,
-                    date=session_date,
-                    session_number=0,
-                    url=session_url,
-                    notes=notes,
-                    role="",
-                    role_category=""
-                ))
-                continue
-    
+                info = validate_participant(speaker, party, use_cloudscraper=use_cloudscraper)
+                if info:
+                     speeches.append(Speech(
+                        speaker=info['name'], party=info['party'],
+                        text=clean_text, date=session_date, session_number=0, url=session_url,
+                        notes=notes, role="", role_category="", profile_url=info['profile_url']
+                    ))
+
     return speeches
 
 
-
-
 def fetch_speeches(limit: int = 200, sessions_to_fetch: int = 10, use_cloudscraper: bool = False) -> pd.DataFrame:
-    """
-    Main function to fetch speeches from multiple sessions.
+    """Main function to fetch speeches from multiple sessions."""
+    logger.info(f"Starting Camera speech scraping (limit={limit}, sessions={sessions_to_fetch})...")
     
-    Args:
-        limit: Maximum total speeches to return
-        sessions_to_fetch: Number of sessions to scrape
-        use_cloudscraper: Use cloudscraper to bypass CloudFront blocking
-    
-    Returns:
-        DataFrame with columns: date, deputy, group, text
-        (Same format as senate.py for compatibility)
-    """
-    logger.info("Starting Camera speech scraping (limit=%d, sessions=%d)...", limit, sessions_to_fetch)
-    
-    # Get session list
-    sessions = get_session_list(legislature=LEGISLATURE, limit=sessions_to_fetch, use_cloudscraper=use_cloudscraper)
-    
+    sessions = get_session_list(LEGISLATURE, months_back=MONTHS_BACK, limit=sessions_to_fetch, use_cloudscraper=use_cloudscraper)
     if not sessions:
-        logger.warning("No sessions found. Returning empty DataFrame.")
         return pd.DataFrame()
     
-    all_speeches = []
+    all_res = []
     
     for session in sessions:
-        speeches = fetch_session_speeches(
-            session['url'], 
-            session_date=session.get('date', 'Unknown'),
-            use_cloudscraper=use_cloudscraper
-        )
+        speeches = fetch_session_speeches(session['url'], session.get('date', 'Unknown'), use_cloudscraper)
         
-        for speech in speeches:
-            # Create unique speaker ID based on available info
-            speaker_name = speech.speaker
-            party = speech.party or ''
-            role = speech.role or ''
-            role_cat = speech.role_category or ''
+        for s in speeches:
+            group = s.party if s.party and s.speaker not in ['PRESIDENTE'] else (
+                 f"Governo" if s.role_category == "governo" else ("Presidenza" if s.role else 'Unknown Group')
+            )
+            unique_speaker = f"{s.speaker} [{s.party}]" if (s.party and group != "Presidenza" and group != "Governo") else s.speaker
             
-            # Build unique speaker ID
-            if party and speaker_name not in ['PRESIDENTE']:
-                unique_speaker = f"{speaker_name} [{party}]"
-                group = party
-            elif role:
-                # PRESIDENTE or other role
-                unique_speaker = speaker_name
-                group = "Governo" if role_cat == "governo" else "Presidenza"
-            else:
-                unique_speaker = speaker_name
-                group = 'Unknown Group'
-            
-            all_speeches.append({
-                'date': speech.date,
-                'deputy': unique_speaker,
-                'speaker_base': speaker_name,
-                'group': group,
-                'text': speech.text,
-                'source': 'camera',
-                'url': speech.url,
-                'role': role,
-                'role_category': role_cat
+            all_res.append({
+                'date': s.date, 'deputy': unique_speaker, 'speaker_base': s.speaker,
+                'group': group, 'text': s.text, 'source': 'camera', 'url': s.url,
+                'role': s.role, 'role_category': s.role_category, 'profile_url': s.profile_url
             })
-
         
-        if len(all_speeches) >= limit:
-            break
-        
-        # Be respectful to the server
+        if len(all_res) >= limit: break
         time.sleep(1)
     
-    df = pd.DataFrame(all_speeches[:limit])
-    logger.info("Scraped %d speeches from Camera", len(df))
-    
+    df = pd.DataFrame(all_res[:limit])
+    logger.info(f"Scraped {len(df)} speeches from Camera")
     return df
 
 
-# For testing
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
-    
-    print("Testing Camera Scraper...")
-    print("=" * 60)
-    
-    # Test session list
-    sessions = get_session_list(limit=3)
-    print(f"\nFound {len(sessions)} sessions:")
-    for s in sessions:
-        print(f"  - ID: {s.get('id', 'N/A')}")
-        print(f"    Date: {s.get('date', 'N/A')}")
-        print(f"    URL: {s.get('url', 'N/A')[:80]}...")
-        print()
-    
-    # Test fetching speeches from first session
-    if sessions:
-        print(f"\n{'=' * 60}")
-        print("Fetching speeches from first session...")
-        speeches = fetch_session_speeches(sessions[0]['url'], sessions[0].get('date', ''))
-        print(f"Found {len(speeches)} speeches")
-        
-        for speech in speeches[:3]:
-            print(f"\n  Speaker: {speech.speaker}")
-            print(f"  Party: {speech.party}")
-            print(f"  Date: {speech.date}")
-            print(f"  Text ({len(speech.text)} chars): {speech.text[:150]}...")
+    logging.basicConfig(level=logging.INFO)
+    print(fetch_speeches(limit=10, sessions_to_fetch=1))

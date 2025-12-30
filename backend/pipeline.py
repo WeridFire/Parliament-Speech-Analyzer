@@ -14,10 +14,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sentence_transformers import SentenceTransformer
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
-from sklearn.cluster import KMeans
+import numpy as np
+import pandas as pd
+# Lazy imports for heavy libraries
+# from sentence_transformers import SentenceTransformer
+# from sklearn.decomposition import PCA
+# from sklearn.manifold import TSNE
+# from sklearn.cluster import KMeans
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +40,7 @@ def generate_embeddings(
         NumPy array of shape (n_texts, embedding_dim)
     """
     logger.info("Loading embedding model: %s", model_name)
+    from sentence_transformers import SentenceTransformer
     model = SentenceTransformer(model_name)
     
     logger.info("Generating embeddings for %d texts...", len(texts))
@@ -67,6 +71,7 @@ def reduce_dimensions(
     logger.info("Reducing dimensions using %s...", method.upper())
     
     if method.lower() == "pca":
+        from sklearn.decomposition import PCA
         reducer = PCA(n_components=n_components, random_state=42)
         reduced = reducer.fit_transform(embeddings)
         explained_var = sum(reducer.explained_variance_ratio_) * 100
@@ -76,9 +81,11 @@ def reduce_dimensions(
         # Pre-reduce with PCA for efficiency
         if embeddings.shape[1] > 50:
             logger.debug("Pre-reducing with PCA for t-SNE...")
+            from sklearn.decomposition import PCA
             pca = PCA(n_components=50, random_state=42)
             embeddings = pca.fit_transform(embeddings)
         
+        from sklearn.manifold import TSNE
         reducer = TSNE(
             n_components=n_components,
             perplexity=min(perplexity, len(embeddings) - 1),
@@ -106,6 +113,7 @@ def apply_clustering(embeddings: np.ndarray, n_clusters: int = 5) -> np.ndarray:
     """
     logger.info("Clustering with K-Means (k=%d)...", n_clusters)
     
+    from sklearn.cluster import KMeans
     kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
     labels = kmeans.fit_predict(embeddings)
     
