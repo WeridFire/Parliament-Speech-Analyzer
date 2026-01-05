@@ -1,19 +1,20 @@
 /**
  * Analytics Dashboard - Main page for advanced political analytics
  * 
- * Features 4 tabs: Identity, Relations, Temporal, Qualitative
+ * Features 5 tabs: Identity, Relations, Temporal, Qualitative, Speakers
  * Supports filtering by year and month via PeriodSelector
  */
 import React, { useState, useMemo } from 'react';
 import { useAppState } from '../../contexts/StateContext';
 import {
     Target, Users, TrendingUp, MessageSquare,
-    ArrowLeft, Loader, BarChart3
+    ArrowLeft, Loader, BarChart3, UserCheck
 } from 'lucide-react';
 import IdentityTab from './tabs/IdentityTab';
 import RelationsTab from './tabs/RelationsTab';
 import TemporalTab from './tabs/TemporalTab';
 import QualitativeTab from './tabs/QualitativeTab';
+import SpeakerStatsTab from './tabs/SpeakerStatsTab';
 import PeriodSelector from './PeriodSelector';
 import './AnalyticsDashboard.css';
 
@@ -21,7 +22,8 @@ const TABS = [
     { id: 'identity', label: 'Identità', icon: Target, color: '#6366f1' },
     { id: 'relations', label: 'Relazioni', icon: Users, color: '#22c55e' },
     { id: 'temporal', label: 'Trend', icon: TrendingUp, color: '#f59e0b' },
-    { id: 'qualitative', label: 'Qualità', icon: MessageSquare, color: '#ef4444' }
+    { id: 'qualitative', label: 'Qualità', icon: MessageSquare, color: '#ef4444' },
+    { id: 'speakers', label: 'Parlamentari', icon: UserCheck, color: '#8b5cf6' }
 ];
 
 const AnalyticsDashboard = ({ onBack }) => {
@@ -62,8 +64,8 @@ const AnalyticsDashboard = ({ onBack }) => {
 
     // Get available periods from data
     const availablePeriods = useMemo(() => {
-        return data?.analytics?.available_periods || { years: [], months: [] };
-    }, [data?.analytics]);
+        return data?.deputies_by_period?.available_periods || { years: [], months: [] };
+    }, [data?.deputies_by_period]);
 
     if (loading) {
         return (
@@ -105,7 +107,9 @@ const AnalyticsDashboard = ({ onBack }) => {
                 // Temporal tab always uses global temporal data (it shows time series)
                 return <TemporalTab key={key} analytics={temporalAnalytics} clusters={clusters} selectedPeriod={selectedPeriod} />;
             case 'qualitative':
-                return <QualitativeTab key={key} analytics={getAnalyticsForPeriod?.qualitative} clusters={clusters} selectedPeriod={selectedPeriod} />;
+                return <QualitativeTab key={key} analytics={getAnalyticsForPeriod?.sentiment} clusters={clusters} selectedPeriod={selectedPeriod} />;
+            case 'speakers':
+                return <SpeakerStatsTab key={key} analytics={getAnalyticsForPeriod} clusters={clusters} selectedPeriod={selectedPeriod} />;
             default:
                 return null;
         }

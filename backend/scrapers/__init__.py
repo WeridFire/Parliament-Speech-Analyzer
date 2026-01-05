@@ -23,8 +23,6 @@ get_session_list = get_senate_sessions
 
 def fetch_all_speeches(
     source: str = 'both',
-    limit: int = 200,
-    sessions_to_fetch: int = 10,
     use_cloudscraper: bool = False
 ) -> pd.DataFrame:
     """
@@ -32,9 +30,7 @@ def fetch_all_speeches(
     
     Args:
         source: 'senate', 'camera', or 'both'
-        limit: Maximum speeches per source
-        sessions_to_fetch: Number of sessions per source
-        use_cloudscraper: Use cloudscraper instead of requests (for Camera only)
+        use_cloudscraper: Use cloudscraper instead of requests
     
     Returns:
         DataFrame with columns: date, deputy, group, text, source
@@ -43,14 +39,14 @@ def fetch_all_speeches(
     
     if source in ('senate', 'both'):
         logger.info("Fetching speeches from Senate...")
-        senate_df = fetch_senate_speeches(limit=limit, sessions_to_fetch=sessions_to_fetch, use_cloudscraper=use_cloudscraper)
+        senate_df = fetch_senate_speeches(use_cloudscraper=use_cloudscraper)
         if not senate_df.empty:
             senate_df['source'] = 'senate'
             frames.append(senate_df)
     
     if source in ('camera', 'both'):
         logger.info("Fetching speeches from Camera...")
-        camera_df = fetch_camera_speeches(limit=limit, sessions_to_fetch=sessions_to_fetch, use_cloudscraper=use_cloudscraper)
+        camera_df = fetch_camera_speeches(use_cloudscraper=use_cloudscraper)
         if not camera_df.empty:
             camera_df['source'] = 'camera'
             frames.append(camera_df)
@@ -66,3 +62,4 @@ def fetch_all_speeches(
                 len(combined[combined['source'] == 'camera']) if 'source' in combined.columns else 0)
     
     return combined
+

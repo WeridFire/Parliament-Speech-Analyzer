@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import Plotly from 'plotly.js-dist-min';
 import createPlotlyComponent from 'react-plotly.js/factory';
 import { useAppState } from '../../contexts/StateContext';
-import { CLUSTER_COLORS, PARTY_COLORS, PARTY_CONFIG } from '../../utils/constants';
+import { CLUSTER_COLORS, PARTY_COLORS, PARTY_CONFIG, getPartyColor, getPartyAbbreviation } from '../../utils/constants';
 import { getCleanName, getPartyFromDeputy } from '../../utils/helpers';
 
 const Plot = createPlotlyComponent(Plotly);
@@ -55,9 +55,9 @@ const ScatterPlot = () => {
                     });
                 } else { // party
                     const party = key;
-                    const config = PARTY_CONFIG[party] || { label: party, shape: 'circle' };
-                    name = config.label;
-                    color = PARTY_COLORS[party] || '#888';
+                    const config = PARTY_CONFIG[party] || { label: getPartyAbbreviation(party), shape: 'circle' };
+                    name = config.label || getPartyAbbreviation(party);
+                    color = getPartyColor(party);
                     symbol = config.shape || 'circle';
                 }
 
@@ -127,9 +127,9 @@ const ScatterPlot = () => {
                     symbol = 'circle';
                 } else {
                     const party = key;
-                    const config = PARTY_CONFIG[party] || { label: party };
-                    name = config.label;
-                    color = PARTY_COLORS[party] || '#888';
+                    const config = PARTY_CONFIG[party] || { label: getPartyAbbreviation(party) };
+                    name = config.label || getPartyAbbreviation(party);
+                    color = getPartyColor(party);
                     symbol = 'circle';
                 }
 

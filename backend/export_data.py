@@ -51,8 +51,7 @@ from backend.analyzers.topics import get_cluster_labels
 
 # Import configuration
 from backend.config import (
-    FETCH_LIMIT,
-    SESSIONS_TO_FETCH,
+    MONTHS_BACK,
     MIN_WORDS,
     N_CLUSTERS,
     EMBEDDING_MODEL,
@@ -97,7 +96,7 @@ def main(force_refetch: bool = False, force_reembed: bool = False, n_clusters_ov
     data_source = source if source else DATA_SOURCE
     
     logger.info("Starting data export for web visualization")
-    logger.info("Configuration: limit=%d, sessions=%d, clusters=%d, source=%s", FETCH_LIMIT, SESSIONS_TO_FETCH, n_clusters, data_source)
+    logger.info("Configuration: months_back=%d, clusters=%d, source=%s", MONTHS_BACK, n_clusters, data_source)
     
     # Try to load cached speeches
     if not force_refetch:
@@ -107,7 +106,7 @@ def main(force_refetch: bool = False, force_reembed: bool = False, n_clusters_ov
         
     if df is None:
         logger.info("Fetching speeches (source=%s)...", data_source)
-        df = fetch_all_speeches(source=data_source, limit=FETCH_LIMIT, sessions_to_fetch=SESSIONS_TO_FETCH, use_cloudscraper=use_cloudscraper)
+        df = fetch_all_speeches(source=data_source, use_cloudscraper=use_cloudscraper)
         
         if df.empty:
             logger.error("No data fetched")
@@ -116,8 +115,15 @@ def main(force_refetch: bool = False, force_reembed: bool = False, n_clusters_ov
         # Save to cache
         save_speeches_cache(df, data_source)
     
-    logger.info("Total speeches loaded: %d", len(df))
     
+    # Filter out PRESIDENTE/Presidenza (procedural speeches)
+    if 'group' in df.columns:
+        df = df[df['group'] != 'Presidenza']
+    if 'deputy' in df.columns:
+        df = df[~df['deputy'].str.contains('PRESIDENTE', case=False, na=False)]
+    
+    logger.info("Speeches after filtering procedural/Presidente: %d", len(df))
+
     # Clean text
     df['cleaned_text'] = df['text'].apply(clean_text)
     
@@ -130,6 +136,12 @@ def main(force_refetch: bool = False, force_reembed: bool = False, n_clusters_ov
     df = df[~df['group'].isin(INVALID_PARTIES)].reset_index(drop=True)
     df = df[df['group'].notna()].reset_index(drop=True)
     logger.info("After party filter: %d speeches", len(df))
+    
+    # Early exit if no speeches remain after filtering
+    if len(df) == 0:
+        logger.error("No speeches remaining after filtering. Check your cache file or try --refetch to re-download data.")
+        logger.info("Hint: Run with --clear-cache to clear stale cache, then --refetch to download fresh data")
+        return
     
     # Normalize party names (unify Camera/Senato naming conventions)
     original_parties = df['group'].unique().tolist()

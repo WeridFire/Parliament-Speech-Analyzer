@@ -76,6 +76,24 @@ def _get_rosters_lazy(use_cloudscraper: bool = False):
     return _ROSTERS
 
 
+def check_rosters_available() -> bool:
+    """
+    Check if rosters have been loaded and contain data.
+    
+    Returns:
+        True if rosters are loaded and have names, False if empty/unavailable
+    """
+    global _ROSTERS
+    if _ROSTERS is None:
+        return False
+    # Check if we have actual roster data (not just empty dicts)
+    all_names = _ROSTERS.get('all_names')
+    if all_names is None:
+        return False
+    # Handle both set and list format
+    return len(all_names) > 0
+
+
 def validate_participant(name: str, party: str = "", source_type: str = 'all', use_cloudscraper: bool = False) -> Optional[dict]:
     """
     Validate participant name against official roster and enrich with profile info.
@@ -116,6 +134,66 @@ def validate_participant(name: str, party: str = "", source_type: str = 'all', u
                 'party': info['party'] or party,
                 'profile_url': info.get('profile_url', '')
             }
+    
+    # Try surname-based match with multiple strategies
+    # Camera uses "NOME COGNOME" but roster has "COGNOME Nome"
+    name_parts = name_normalized.split()
+    candidates = []
+    
+    for roster_name in rosters['all_names']:
+        roster_parts = roster_name.split()
+        if not roster_parts:
+            continue
+            
+        roster_surname = roster_parts[0].lower()  # Roster format: COGNOME Nome
+        
+        # Strategy 1: Direct surname match (e.g., "MALAN" matches "Malan Lucio")
+        if len(name_parts) == 1:
+            if roster_surname == name_parts[0].lower():
+                candidates.append(roster_name)
+        # Strategy 2: Full name with reversed order (Camera: NOME COGNOME -> Roster: COGNOME Nome)
+        elif len(name_parts) >= 2:
+            # Try matching last word of input as surname
+            input_last = name_parts[-1].lower()  # Likely surname in Camera format
+            input_first = name_parts[0].lower()  # Likely first name
+            
+            if len(roster_parts) >= 2:
+                roster_first = roster_parts[1].lower() if len(roster_parts) > 1 else ""
+                
+                # Match: input "Giuseppe Conte" -> roster "Conte Giuseppe"
+                if roster_surname == input_last and roster_first == input_first:
+                    candidates.append(roster_name)
+                # Match: input "Conte Giuseppe" -> roster "Conte Giuseppe" (same order)
+                elif roster_surname == input_first and roster_first == input_last:
+                    candidates.append(roster_name)
+    
+    if len(candidates) == 1:
+        # Unique match found
+        info = rosters['name_to_info'][candidates[0]]
+        return {
+            'name': info['full_name'],
+            'party': info['party'] or party,
+            'profile_url': info.get('profile_url', '')
+        }
+    elif len(candidates) > 1:
+        # Multiple matches - try to disambiguate by party if provided
+        if party:
+            for candidate in candidates:
+                info = rosters['name_to_info'][candidate]
+                if party.lower() in (info.get('party', '') or '').lower():
+                    return {
+                        'name': info['full_name'],
+                        'party': info['party'] or party,
+                        'profile_url': info.get('profile_url', '')
+                    }
+        # Can't disambiguate - return first match but log warning
+        info = rosters['name_to_info'][candidates[0]]
+        logger.debug("Multiple roster matches for '%s': %s, using first", name, candidates)
+        return {
+            'name': info['full_name'],
+            'party': info['party'] or party,
+            'profile_url': info.get('profile_url', '')
+        }
     
     # Not found in roster
     # logger.debug("Participant name not in official roster: %s", name)

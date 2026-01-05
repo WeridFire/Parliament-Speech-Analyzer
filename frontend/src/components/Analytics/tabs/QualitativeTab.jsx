@@ -7,6 +7,7 @@ import createPlotlyComponent from 'react-plotly.js/factory';
 import { MessageSquare, BookOpen, Swords, ThumbsUp, ThumbsDown, Grid, TrendingUp, TrendingDown } from 'lucide-react';
 import NoDataMessage from '../NoDataMessage';
 import CustomDropdown from '../../UI/CustomDropdown';
+import { getPartyAbbreviation } from '../../../utils/constants';
 
 const Plot = createPlotlyComponent(Plotly);
 
@@ -251,7 +252,7 @@ const QualitativeTab = ({ analytics, clusters, selectedPeriod }) => {
                                             </span>
                                             <div className="ranking-info">
                                                 <div className="ranking-name">{item.speaker.split(' (')[0]}</div>
-                                                <div className="ranking-party">{item.party}</div>
+                                                <div className="ranking-party">{getPartyAbbreviation(item.party)}</div>
                                             </div>
                                             <span className="score-value" style={{ color: '#22c55e' }}>
                                                 {(item.score * 100).toFixed(0)}%
@@ -276,7 +277,7 @@ const QualitativeTab = ({ analytics, clusters, selectedPeriod }) => {
                                             </span>
                                             <div className="ranking-info">
                                                 <div className="ranking-name">{item.speaker.split(' (')[0]}</div>
-                                                <div className="ranking-party">{item.party}</div>
+                                                <div className="ranking-party">{getPartyAbbreviation(item.party)}</div>
                                             </div>
                                             <span className="score-value" style={{ color: '#ef4444' }}>
                                                 {(item.score * 100).toFixed(0)}%
@@ -403,7 +404,7 @@ const QualitativeTab = ({ analytics, clusters, selectedPeriod }) => {
                                         </span>
                                         <div className="ranking-info">
                                             <div className="ranking-name">{item.speaker.split(' (')[0]}</div>
-                                            <div className="ranking-party">{item.party}</div>
+                                            <div className="ranking-party">{getPartyAbbreviation(item.party)}</div>
                                         </div>
                                         <span className="score-value" style={{ color: '#ef4444' }}>
                                             {item.score.toFixed(0)}
@@ -436,7 +437,7 @@ const QualitativeTab = ({ analytics, clusters, selectedPeriod }) => {
                                         </span>
                                         <div className="ranking-info">
                                             <div className="ranking-name">{item.speaker.split(' (')[0]}</div>
-                                            <div className="ranking-party">{item.party}</div>
+                                            <div className="ranking-party">{getPartyAbbreviation(item.party)}</div>
                                         </div>
                                         <span className="score-value" style={{ color: '#22c55e' }}>
                                             {item.score.toFixed(0)}

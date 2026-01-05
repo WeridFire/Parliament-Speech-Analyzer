@@ -29,9 +29,9 @@ SESSION_LIST_URL = f"{DOCS_URL}/apps/commonServices/getDocumento.ashx?idLegislat
 STENOGRAPHIC_URL = f"{BASE_URL}/leg{{leg}}/410?idSeduta={{session_id}}&tipo=stenografico"
 
 
-def get_session_list(legislature: int = LEGISLATURE, months_back: int = MONTHS_BACK, limit: int = 20, use_cloudscraper: bool = False) -> list[dict]:
+def get_session_list(legislature: int = LEGISLATURE, months_back: int = MONTHS_BACK, use_cloudscraper: bool = False) -> list[dict]:
     """Fetch the list of available Chamber sessions from recent months."""
-    logger.info("Fetching session list from camera.it...")
+    logger.info(f"Fetching session list from camera.it for last {months_back} months...")
     
     http_client = get_http_client(use_cloudscraper)
     sessions = []
@@ -67,9 +67,6 @@ def get_session_list(legislature: int = LEGISLATURE, months_back: int = MONTHS_B
         time.sleep(0.5)
 
     sessions.sort(key=lambda x: x.get('date', ''))
-    if limit and len(sessions) > limit:
-        sessions = sessions[:limit]
-    
     logger.info(f"Found {len(sessions)} sessions from camera.it")
     return sessions
 
@@ -165,7 +162,11 @@ def _parse_speeches_from_html(soup: BeautifulSoup, session_date: str, session_ur
                         if info:
                             name, party, profile_url = info['name'], info['party'], info['profile_url']
                         else:
-                            continue # Skip non-validated in strict link mode
+                            # Allow through if rosters unavailable, skip if rosters exist but no match
+                            from backend.scrapers.utils import check_rosters_available
+                            if check_rosters_available():
+                                continue
+                            # Rosters unavailable - keep original speaker/party
 
                     speeches.append(Speech(
                         speaker=name, party=party, text=clean_text, date=session_date,
@@ -180,21 +181,39 @@ def _parse_speeches_from_html(soup: BeautifulSoup, session_date: str, session_ur
         # 2. Fallback: Role Pattern
         if m := role_fallback_pattern.match(text):
             speaker, role, speech_text = m.groups()
+            
+            # Speaker name must be ALL CAPS (e.g., "SISTO") to be valid
+            # This prevents matching text like "Concludo dicendo, ministro..."
+            if not speaker.isupper():
+                continue
+                
             role = normalize_role(role)
             role_cat = get_role_category(role)
             
-            notes = re.findall(r'\(([^)]+)\)', speech_text)
+            notes = re.findall(r'\([^)]+\)', speech_text)
             clean_text = re.sub(r'\([^)]*\)', '', speech_text).strip()
             
             if len(clean_text) > 20:
                 info = validate_participant(speaker, "", use_cloudscraper=use_cloudscraper)
-                if info or role_cat == "governo":
-                     speeches.append(Speech(
-                        speaker=info['name'] if info else speaker,
-                        party="Governo" if role_cat == "governo" else "",
+                # Allow through if: validated OR (governo role AND roster available to validate)
+                from backend.scrapers.utils import check_rosters_available
+                # For governo, only accept if we can validate the name OR rosters are unavailable
+                if info:
+                    speeches.append(Speech(
+                        speaker=info['name'],
+                        party=info['party'] or ("Governo" if role_cat == "governo" else ""),
                         text=clean_text, date=session_date, session_number=0, url=session_url,
                         notes=notes, role=role, role_category=role_cat,
-                        profile_url=info.get('profile_url', '') if info else ''
+                        profile_url=info.get('profile_url', '')
+                    ))
+                elif role_cat == "governo" and not check_rosters_available():
+                    # Only accept governo without validation if rosters unavailable
+                    speeches.append(Speech(
+                        speaker=speaker,
+                        party="Governo",
+                        text=clean_text, date=session_date, session_number=0, url=session_url,
+                        notes=notes, role=role, role_category=role_cat,
+                        profile_url=''
                     ))
             continue
 
@@ -206,21 +225,25 @@ def _parse_speeches_from_html(soup: BeautifulSoup, session_date: str, session_ur
             
             if len(clean_text) > 20 and speaker.isupper():
                 info = validate_participant(speaker, party, use_cloudscraper=use_cloudscraper)
-                if info:
+                # Allow through if validated or rosters unavailable
+                from backend.scrapers.utils import check_rosters_available
+                if info or not check_rosters_available():
                      speeches.append(Speech(
-                        speaker=info['name'], party=info['party'],
+                        speaker=info['name'] if info else speaker,
+                        party=info['party'] if info else party,
                         text=clean_text, date=session_date, session_number=0, url=session_url,
-                        notes=notes, role="", role_category="", profile_url=info['profile_url']
+                        notes=notes, role="", role_category="",
+                        profile_url=info['profile_url'] if info else ''
                     ))
 
     return speeches
 
 
-def fetch_speeches(limit: int = 200, sessions_to_fetch: int = 10, use_cloudscraper: bool = False) -> pd.DataFrame:
-    """Main function to fetch speeches from multiple sessions."""
-    logger.info(f"Starting Camera speech scraping (limit={limit}, sessions={sessions_to_fetch})...")
+def fetch_speeches(use_cloudscraper: bool = False) -> pd.DataFrame:
+    """Main function to fetch speeches from all sessions within MONTHS_BACK."""
+    logger.info(f"Starting Camera speech scraping for last {MONTHS_BACK} months...")
     
-    sessions = get_session_list(LEGISLATURE, months_back=MONTHS_BACK, limit=sessions_to_fetch, use_cloudscraper=use_cloudscraper)
+    sessions = get_session_list(LEGISLATURE, months_back=MONTHS_BACK, use_cloudscraper=use_cloudscraper)
     if not sessions:
         return pd.DataFrame()
     
@@ -233,6 +256,11 @@ def fetch_speeches(limit: int = 200, sessions_to_fetch: int = 10, use_cloudscrap
             group = s.party if s.party and s.speaker not in ['PRESIDENTE'] else (
                  f"Governo" if s.role_category == "governo" else ("Presidenza" if s.role else 'Unknown Group')
             )
+            
+            # Skip procedural speeches
+            if group == "Presidenza" or s.speaker == 'PRESIDENTE':
+                continue
+                
             unique_speaker = f"{s.speaker} [{s.party}]" if (s.party and group != "Presidenza" and group != "Governo") else s.speaker
             
             all_res.append({
@@ -241,14 +269,13 @@ def fetch_speeches(limit: int = 200, sessions_to_fetch: int = 10, use_cloudscrap
                 'role': s.role, 'role_category': s.role_category, 'profile_url': s.profile_url
             })
         
-        if len(all_res) >= limit: break
         time.sleep(1)
     
-    df = pd.DataFrame(all_res[:limit])
-    logger.info(f"Scraped {len(df)} speeches from Camera")
+    df = pd.DataFrame(all_res)
+    logger.info(f"Scraped {len(df)} speeches from Camera ({len(sessions)} sessions)")
     return df
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    print(fetch_speeches(limit=10, sessions_to_fetch=1))
+    print(fetch_speeches())

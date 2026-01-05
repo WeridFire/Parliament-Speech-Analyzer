@@ -32,11 +32,18 @@ def compute_interaction_network(
     speaker_patterns = {}
     for speaker in speakers:
         # Create regex pattern for each speaker
-        parts = speaker.split()
-        if len(parts) >= 2:
-            # Match surname or full name (case insensitive)
-            surname = parts[-1]
-            if len(surname) >= 3:
+        # Name format is: "COGNOME Nome [PARTITO]" or just "COGNOME Nome"
+        # First, remove the party bracket part if present
+        clean_name = re.sub(r'\s*\[[^\]]*\]$', '', speaker).strip()
+        
+        parts = clean_name.split()
+        if len(parts) >= 1:
+            # The surname is the FIRST word (Italian convention: "ROSSI Mario")
+            surname = parts[0]
+            
+            # Validate: real surnames are ALL CAPS (e.g., "ROSSI", "MELONI")
+            # This filters out scraper noise like "Allora", "Lei oggi", "Non basta"
+            if len(surname) >= 3 and surname.isupper():
                 speaker_patterns[speaker] = re.compile(r'\b' + re.escape(surname) + r'\b', re.IGNORECASE)
     
     # Track mentions

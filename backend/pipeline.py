@@ -70,6 +70,11 @@ def reduce_dimensions(
     """
     logger.info("Reducing dimensions using %s...", method.upper())
     
+    # Guard against empty arrays
+    if embeddings.size == 0 or len(embeddings.shape) < 2 or embeddings.shape[0] == 0:
+        logger.warning("Cannot reduce dimensions: empty or invalid embeddings array")
+        return np.array([]).reshape(0, n_components)
+    
     if method.lower() == "pca":
         from sklearn.decomposition import PCA
         reducer = PCA(n_components=n_components, random_state=42)

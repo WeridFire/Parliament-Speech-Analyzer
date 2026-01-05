@@ -10,7 +10,7 @@ import time
 import pandas as pd
 from bs4 import BeautifulSoup
 
-from backend.config import LEGISLATURE
+from backend.config import LEGISLATURE, MONTHS_BACK
 from backend.utils import retry
 from backend.config.roles import build_role_pattern, normalize_role, get_role_category
 from backend.scrapers.utils import (
@@ -25,7 +25,7 @@ SESSIONS_LIST_URL = f"{BASE_URL}/lavori/assemblea/resoconti-elenco-cronologico"
 SESSION_URL_TEMPLATE = f"{BASE_URL}/show-doc?leg={{leg}}&tipodoc=Resaula&id={{id}}&idoggetto=0&part=doc_dc-ressten_rs"
 
 
-def get_session_list(legislature: int = LEGISLATURE, limit: int = 20, use_cloudscraper: bool = False) -> list[dict]:
+def get_session_list(legislature: int = LEGISLATURE, use_cloudscraper: bool = False) -> list[dict]:
     """Fetch the list of available Senate sessions from the chronological list."""
     logger.info(f"Fetching session list from {SESSIONS_LIST_URL}...")
     
@@ -52,9 +52,6 @@ def get_session_list(legislature: int = LEGISLATURE, limit: int = 20, use_clouds
                         'title': title,
                         'date': date
                     })
-                    
-                    if len(sessions) >= limit:
-                        break
         
         logger.info(f"Found {len(sessions)} sessions")
         return sessions
@@ -173,22 +170,43 @@ def _parse_speeches_from_html(soup: BeautifulSoup, session_date: str, session_ur
     return speeches
 
 
-def fetch_speeches(limit: int = 200, sessions_to_fetch: int = 5, use_cloudscraper: bool = False) -> pd.DataFrame:
-    """Main function to fetch speeches from multiple sessions."""
-    logger.info(f"Starting Senate speech scraping (limit={limit}, sessions={sessions_to_fetch})...")
+def fetch_speeches(use_cloudscraper: bool = False) -> pd.DataFrame:
+    """Main function to fetch speeches from all sessions within MONTHS_BACK."""
+    from datetime import datetime, timedelta
     
-    sessions = get_session_list(LEGISLATURE, limit=sessions_to_fetch, use_cloudscraper=use_cloudscraper)
+    logger.info(f"Starting Senate speech scraping for last {MONTHS_BACK} months...")
+    
+    sessions = get_session_list(LEGISLATURE, use_cloudscraper=use_cloudscraper)
     if not sessions:
         return pd.DataFrame()
     
-    all_res = []
+    # Filter sessions by date (within MONTHS_BACK)
+    cutoff_date = datetime.now() - timedelta(days=MONTHS_BACK * 30)
+    filtered_sessions = []
     for session in sessions:
+        try:
+            session_date = datetime.strptime(session['date'], '%Y-%m-%d')
+            if session_date >= cutoff_date:
+                filtered_sessions.append(session)
+        except (ValueError, TypeError):
+            # If date parsing fails, include the session
+            filtered_sessions.append(session)
+    
+    logger.info(f"Filtered to {len(filtered_sessions)} sessions within {MONTHS_BACK} months")
+    
+    all_res = []
+    for session in filtered_sessions:
         speeches = fetch_session_speeches(session['url'], session.get('date', 'Unknown'), use_cloudscraper)
         
         for s in speeches:
             group = s.party if s.party and s.speaker not in ['PRESIDENTE', 'PRESIDENTESSA'] else (
                  f"Governo" if s.role_category == "governo" else ("Presidenza" if s.role else 'Unknown Group')
             )
+            
+            # Skip procedural speeches
+            if group == "Presidenza" or s.speaker in ['PRESIDENTE', 'PRESIDENTESSA']:
+                continue
+                
             unique_speaker = f"{s.speaker} [{s.party}]" if (s.party and group != "Presidenza" and group != "Governo") else s.speaker
             
             all_res.append({
@@ -196,16 +214,14 @@ def fetch_speeches(limit: int = 200, sessions_to_fetch: int = 5, use_cloudscrape
                 'group': group, 'text': s.text, 'source': 'senate', 'url': s.url,
                 'role': s.role, 'role_category': s.role_category, 'profile_url': s.profile_url
             })
-            
-        if len(all_res) >= limit:
-            break
+        
         time.sleep(1)
             
-    df = pd.DataFrame(all_res[:limit])
-    logger.info(f"Scraped {len(df)} speeches total")
+    df = pd.DataFrame(all_res)
+    logger.info(f"Scraped {len(df)} speeches total from {len(filtered_sessions)} sessions")
     return df
 
 if __name__ == "__main__":
-    # Test block (simplified)
+    # Test block
     logging.basicConfig(level=logging.INFO)
-    print(fetch_speeches(limit=10, sessions_to_fetch=1))
+    print(fetch_speeches())
