@@ -309,7 +309,7 @@ const QualitativeTab = ({ analytics, clusters, selectedPeriod }) => {
                                             {idx + 1}
                                         </span>
                                         <div className="ranking-info">
-                                            <div className="ranking-name">{item.party}</div>
+                                            <div className="ranking-name" title={item.party}>{getPartyAbbreviation(item.party)}</div>
                                             <div className="ranking-party">
                                                 {isEasy ? '📖 Facile' : isMedium ? '📚 Medio' : '🎓 Difficile'}
                                             </div>
@@ -362,7 +362,7 @@ const QualitativeTab = ({ analytics, clusters, selectedPeriod }) => {
                                             {idx + 1}
                                         </span>
                                         <div className="ranking-info">
-                                            <div className="ranking-name">{item.party}</div>
+                                            <div className="ranking-name" title={item.party}>{getPartyAbbreviation(item.party)}</div>
                                             <div className="ranking-party">
                                                 {item.classification === 'alta' ? '🔥 Alta' : item.classification === 'media' ? '⚠️ Media' : '✅ Bassa'}
                                             </div>

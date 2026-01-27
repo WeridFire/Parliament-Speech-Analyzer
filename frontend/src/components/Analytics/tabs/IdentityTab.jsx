@@ -7,6 +7,7 @@ import createPlotlyComponent from 'react-plotly.js/factory';
 import { Target, Fingerprint, Scale, Tag } from 'lucide-react';
 import NoDataMessage from '../NoDataMessage';
 import WordCloud from '../../UI/WordCloud';
+import { getPartyAbbreviation } from '../../../utils/constants';
 
 const Plot = createPlotlyComponent(Plotly);
 
@@ -130,8 +131,9 @@ const IdentityTab = ({ analytics, clusters, selectedPeriod }) => {
                                 key={party}
                                 className={`party-chip ${selectedParty === party ? 'selected' : ''}`}
                                 onClick={() => setSelectedParty(party)}
+                                title={party}
                             >
-                                {party}
+                                {getPartyAbbreviation(party)}
                             </button>
                         ))}
                     </div>
@@ -207,7 +209,9 @@ const IdentityTab = ({ analytics, clusters, selectedPeriod }) => {
                                             {idx + 1}
                                         </span>
                                         <div className="ranking-info">
-                                            <div className="ranking-name">{item.name}</div>
+                                            <div className="ranking-name" title={item.name}>
+                                                {viewMode === 'party' ? getPartyAbbreviation(item.name) : item.name.split(/\s*[\(\[]/)[0]}
+                                            </div>
                                             <div className="ranking-party">{item.n_speeches} discorsi</div>
                                         </div>
                                         <div className="score-bar-container">
@@ -241,7 +245,9 @@ const IdentityTab = ({ analytics, clusters, selectedPeriod }) => {
                                             {idx + 1}
                                         </span>
                                         <div className="ranking-info">
-                                            <div className="ranking-name">{item.name}</div>
+                                            <div className="ranking-name" title={item.name}>
+                                                {viewMode === 'party' ? getPartyAbbreviation(item.name) : item.name.split(/\s*[\(\[]/)[0]}
+                                            </div>
                                             <div className="ranking-party">
                                                 Tema: {clusters[item.dominant_topic]?.label || `Cluster ${item.dominant_topic}`}
                                             </div>

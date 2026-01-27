@@ -16,6 +16,7 @@ import NoDataMessage from '../NoDataMessage';
 import RankingCard from '../../UI/RankingCard';
 import SpeakerProfileCard from '../../UI/SpeakerProfileCard';
 import CustomDropdown from '../../UI/CustomDropdown';
+import { getPartyAbbreviation } from '../../../utils/constants';
 
 // Ranking categories configuration
 const RANKING_CATEGORIES = [
@@ -135,7 +136,7 @@ const SpeakerStatsTab = ({ analytics, clusters, selectedPeriod }) => {
                                 >
                                     <span className="speaker-name">{speaker.split(' (')[0]}</span>
                                     {bySpeaker[speaker]?.network?.party && (
-                                        <span className="speaker-party">{bySpeaker[speaker].network.party}</span>
+                                        <span className="speaker-party">{getPartyAbbreviation(bySpeaker[speaker].network.party)}</span>
                                     )}
                                 </button>
                             ))}

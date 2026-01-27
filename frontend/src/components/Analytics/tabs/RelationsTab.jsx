@@ -6,6 +6,7 @@ import Plotly from 'plotly.js-dist-min';
 import createPlotlyComponent from 'react-plotly.js/factory';
 import { Users, Network, Target, UserCheck } from 'lucide-react';
 import NoDataMessage from '../NoDataMessage';
+import { getPartyAbbreviation } from '../../../utils/constants';
 
 const Plot = createPlotlyComponent(Plotly);
 
@@ -156,7 +157,7 @@ const RelationsTab = ({ analytics, clusters, selectedPeriod }) => {
                                         {idx + 1}
                                     </span>
                                     <div className="ranking-info">
-                                        <div className="ranking-name">{item.party}</div>
+                                        <div className="ranking-name" title={item.party}>{getPartyAbbreviation(item.party)}</div>
                                         <div className="ranking-party">{item.n_members} membri</div>
                                     </div>
                                     <div className="score-bar-container">
@@ -209,12 +210,12 @@ const RelationsTab = ({ analytics, clusters, selectedPeriod }) => {
                                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
                                             <div>
                                                 <div style={{ color: '#e2e8f0', fontWeight: 500 }}>{pair.speaker1.split(' (')[0]}</div>
-                                                <div style={{ color: '#64748b', fontSize: '11px' }}>{pair.party1}</div>
+                                                <div style={{ color: '#64748b', fontSize: '11px' }} title={pair.party1}>{getPartyAbbreviation(pair.party1)}</div>
                                             </div>
                                             <div style={{ color: '#64748b' }}>↔</div>
                                             <div style={{ textAlign: 'right' }}>
                                                 <div style={{ color: '#e2e8f0', fontWeight: 500 }}>{pair.speaker2.split(' (')[0]}</div>
-                                                <div style={{ color: '#64748b', fontSize: '11px' }}>{pair.party2}</div>
+                                                <div style={{ color: '#64748b', fontSize: '11px' }} title={pair.party2}>{getPartyAbbreviation(pair.party2)}</div>
                                             </div>
                                         </div>
                                     </div>

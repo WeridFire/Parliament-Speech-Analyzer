@@ -5,6 +5,9 @@ A comprehensive NLP-powered analysis platform for Italian parliamentary discours
 > [!NOTE]
 > **Frontend Development**: The frontend web application is currently under active development.
 
+> [!NOTE]
+> **Data**: The pipeline has not been run yet, so the data may not be accurate or fully compiled.
+
 ---
 
 ## Table of Contents
