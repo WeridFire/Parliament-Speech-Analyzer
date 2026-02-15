@@ -208,21 +208,20 @@ def compute_source_output(args):
     # Sort and take top 15
     source_rebels = sorted(source_candidates, key=lambda x: -x['rebel_pct'])[:15]
     
-    # Compute analytics SEPARATELY for this source using AnalyticsOrchestrator
-    source_orchestrator = AnalyticsOrchestrator(
+    # Compute analytics SEPARATELY for this source, with period-based breakdown
+    from backend.analyzers.period_orchestrator import compute_analytics_by_period
+    from backend.config import COMPUTE_ANALYTICS_BY_PERIOD
+    
+    source_analytics = compute_analytics_by_period(
         df=source_df,
         embeddings=source_embeddings,
         cluster_labels=cluster_labels,
         cluster_centroids=cluster_centroids,
         source=src,
-        enable_cache=False,
-        text_col='cleaned_text',
-        speaker_col='deputy',
-        party_col='group',
-        cluster_col='cluster',
         date_col='date',
+        enable_cache=False,
+        compute_by_period=COMPUTE_ANALYTICS_BY_PERIOD,
     )
-    source_analytics = source_orchestrator.run_all(use_cache=False)
     
     # Build cluster metadata for this source
     source_cluster_meta = {}

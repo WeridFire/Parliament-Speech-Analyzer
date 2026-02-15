@@ -7,7 +7,8 @@ General infrastructure and data settings.
 # =============================================================================
 
 # How many months back to fetch speeches (applies to both Camera and Senato)
-MONTHS_BACK = 13
+# How many months back to fetch speeches (applies to both Camera and Senato)
+MONTHS_BACK = 15
 
 # Data source: 'senate', 'camera', or 'both'
 DATA_SOURCE = 'both'
@@ -37,6 +38,10 @@ EMBEDDING_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
 
 # Dimensionality reduction method: 'pca' or 'tsne'
 REDUCTION_METHOD = "pca"
+
+# Compute analytics for each time period (by_year, by_month)
+# Set to False for faster export (global-only analytics)
+COMPUTE_ANALYTICS_BY_PERIOD = True
 
 # t-SNE perplexity (only used if REDUCTION_METHOD = 'tsne')
 TSNE_PERPLEXITY = 30
