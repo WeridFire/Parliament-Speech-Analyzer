@@ -54,7 +54,7 @@ def fetch_camera_roster(legislature: int = 19, use_cloudscraper: bool = False) -
     letters = 'ABCDEFGHIKLMNOPQRSTUVZ'  # Camera uses these letters
     
     for letter in letters:
-        url = f'https://www.camera.it/leg{legislature}/28?lettera={letter}'
+        url = f'https://www.camera.it/deputati/elenco?leg={legislature}&lettera={letter}'
         
         try:
             response = http_client.get(url, timeout=30)
@@ -62,10 +62,10 @@ def fetch_camera_roster(legislature: int = 19, use_cloudscraper: bool = False) -
             soup = BeautifulSoup(response.content, 'html.parser')
             
             # Find all deputy entries
-            # Pattern: <a href="...schedaDeputato...">SURNAME Name</a>
-            # Followed by: <a href="...gruppo...">PARTY NAME</a>
+            # Pattern: <a href=".../deputati/elenco/...">SURNAME Name</a>
+            # Followed by: <a href="...shadow_gruppi_parlamentari...">PARTY NAME</a>
             
-            deputy_links = soup.find_all('a', href=re.compile(r'schedaDeputato'))
+            deputy_links = soup.find_all('a', href=re.compile(r'deputati/elenco/'))
             
             for link in deputy_links:
                 name = link.get_text(strip=True)
@@ -75,10 +75,10 @@ def fetch_camera_roster(legislature: int = 19, use_cloudscraper: bool = False) -
                 # Get profile URL
                 profile_url = link.get('href', '')
                 if not profile_url.startswith('http'):
-                    profile_url = 'https://documenti.camera.it' + profile_url
+                    profile_url = 'https://www.camera.it' + profile_url
                 
-                # Find party name (next <a> tag with gruppo in href)
-                party_elem = link.find_next('a', href=re.compile(r'gruppo'))
+                # Find party name (next <a> tag with gruppi in href)
+                party_elem = link.find_next('a', href=re.compile(r'grupp'))
                 party = party_elem.get_text(strip=True) if party_elem else ''
                 
                 deputies.append({
