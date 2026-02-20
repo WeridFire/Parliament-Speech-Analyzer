@@ -5,7 +5,7 @@ const HomePage = ({ onEnter, onAnalytics }) => {
     return (
         <div style={{
             minHeight: '100vh',
-            background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%)',
+            background: '#1b1f24',
             color: '#e2e8f0',
             overflow: 'auto'
         }}>
@@ -20,7 +20,7 @@ const HomePage = ({ onEnter, onAnalytics }) => {
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '10px',
-                    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                    background: '#2d9c9c',
                     padding: '6px 16px',
                     borderRadius: '30px',
                     marginBottom: '20px',
@@ -28,7 +28,7 @@ const HomePage = ({ onEnter, onAnalytics }) => {
                     fontWeight: '500'
                 }}>
                     <Sparkles size={16} />
-                    Analisi Semantica con AI
+                    Analisi Semantica del Parlamento
                 </div>
 
                 <h1 style={{
@@ -36,10 +36,7 @@ const HomePage = ({ onEnter, onAnalytics }) => {
                     fontWeight: '700',
                     lineHeight: '1.1',
                     margin: '0 0 16px 0',
-                    background: 'linear-gradient(135deg, #fff 0%, #94a3b8 100%)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text'
+                    color: '#f0f0f0'
                 }}>
                     Mappa Semantica del<br />Parlamento Italiano
                 </h1>
@@ -66,13 +63,13 @@ const HomePage = ({ onEnter, onAnalytics }) => {
                             padding: '12px 24px',
                             fontSize: '1rem',
                             fontWeight: '600',
-                            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                            background: '#2d9c9c',
                             border: 'none',
                             borderRadius: '10px',
                             color: '#fff',
                             cursor: 'pointer',
                             transition: 'transform 0.2s, box-shadow 0.2s',
-                            boxShadow: '0 4px 15px rgba(99, 102, 241, 0.35)'
+                            boxShadow: '0 4px 15px rgba(45, 156, 156, 0.35)'
                         }}
                         onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
                         onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
@@ -90,15 +87,15 @@ const HomePage = ({ onEnter, onAnalytics }) => {
                             fontSize: '1rem',
                             fontWeight: '600',
                             background: 'rgba(255, 255, 255, 0.05)',
-                            border: '2px solid rgba(99, 102, 241, 0.5)',
+                            border: '2px solid rgba(45, 156, 156, 0.5)',
                             borderRadius: '10px',
-                            color: '#a5b4fc',
+                            color: '#5ec2c2',
                             cursor: 'pointer',
                             transition: 'transform 0.2s, background 0.2s'
                         }}
                         onMouseOver={e => {
                             e.currentTarget.style.transform = 'translateY(-2px)';
-                            e.currentTarget.style.background = 'rgba(99, 102, 241, 0.15)';
+                            e.currentTarget.style.background = 'rgba(45, 156, 156, 0.15)';
                         }}
                         onMouseOut={e => {
                             e.currentTarget.style.transform = 'translateY(0)';
@@ -142,7 +139,7 @@ const HomePage = ({ onEnter, onAnalytics }) => {
                         icon={<Map size={28} />}
                         title="Mappa Semantica"
                         description="Ogni punto rappresenta un discorso. Discorsi simili per contenuto appaiono vicini nello spazio, creando cluster tematici naturali."
-                        color="#6366f1"
+                        color="#2d9c9c"
                     />
                     <FeatureCard
                         icon={<GitBranch size={28} />}
@@ -283,7 +280,7 @@ const GuideStep = ({ number, text }) => (
             width: '36px',
             height: '36px',
             borderRadius: '50%',
-            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+            background: '#2d9c9c',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

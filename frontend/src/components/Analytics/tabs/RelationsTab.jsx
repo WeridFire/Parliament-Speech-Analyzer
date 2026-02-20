@@ -34,8 +34,8 @@ const RelationsTab = ({ analytics, clusters, selectedPeriod }) => {
                 x: parties,
                 y: parties,
                 colorscale: [
-                    [0, '#0f172a'],
-                    [0.5, '#6366f1'],
+                    [0, '#1b1f24'],
+                    [0.5, '#2d9c9c'],
                     [1, '#22c55e']
                 ],
                 hoverongaps: false,

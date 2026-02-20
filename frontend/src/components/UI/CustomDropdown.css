@@ -50,7 +50,7 @@
 
 .custom-dropdown.open .dropdown-trigger {
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    box-shadow: 0 0 0 3px rgba(45, 156, 156, 0.15);
 }
 
 /* Dropdown Menu */
@@ -58,7 +58,8 @@
     position: absolute;
     top: calc(100% + 4px);
     left: 0;
-    right: 0;
+    min-width: 100%;
+    width: max-content;
     z-index: 1000;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
@@ -102,12 +103,12 @@
 }
 
 .dropdown-item.selected {
-    background: rgba(99, 102, 241, 0.15);
+    background: rgba(45, 156, 156, 0.15);
     color: var(--accent-primary);
 }
 
 .dropdown-item.selected:hover {
-    background: rgba(99, 102, 241, 0.25);
+    background: rgba(45, 156, 156, 0.25);
 }
 
 .dropdown-item svg {

@@ -107,7 +107,7 @@ const QualitativeTab = ({ analytics, clusters, selectedPeriod }) => {
                 y: partyTopicSentiment.parties,
                 colorscale: [
                     [0, '#ef4444'],
-                    [0.5, '#1e293b'],
+                    [0.5, '#242930'],
                     [1, '#22c55e']
                 ],
                 zmin: -0.5,
@@ -234,7 +234,7 @@ const QualitativeTab = ({ analytics, clusters, selectedPeriod }) => {
                         <div className="analytics-card">
                             <div className="card-header" style={{ justifyContent: 'space-between' }}>
                                 <h3><TrendingUp size={18} /> Più Positivi per Tema</h3>
-                                <div style={{ maxWidth: '160px' }}>
+                                <div style={{ minWidth: '180px', maxWidth: '280px' }}>
                                     <CustomDropdown
                                         options={rankingTopics.map(t => ({ value: t.id, label: t.label }))}
                                         value={selectedRankingTopic ?? rankingTopics[0]?.id}

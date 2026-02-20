@@ -19,11 +19,11 @@ import PeriodSelector from './PeriodSelector';
 import './AnalyticsDashboard.css';
 
 const TABS = [
-    { id: 'identity', label: 'Identità', icon: Target, color: '#6366f1' },
+    { id: 'identity', label: 'Identità', icon: Target, color: '#2d9c9c' },
     { id: 'relations', label: 'Relazioni', icon: Users, color: '#22c55e' },
     { id: 'temporal', label: 'Trend', icon: TrendingUp, color: '#f59e0b' },
     { id: 'qualitative', label: 'Qualità', icon: MessageSquare, color: '#ef4444' },
-    { id: 'speakers', label: 'Parlamentari', icon: UserCheck, color: '#8b5cf6' }
+    { id: 'speakers', label: 'Parlamentari', icon: UserCheck, color: '#d4943a' }
 ];
 
 const AnalyticsDashboard = ({ onBack }) => {

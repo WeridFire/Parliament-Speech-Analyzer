@@ -13,7 +13,7 @@ import PropTypes from 'prop-types';
  * @param {React.ComponentType} props.icon - Lucide icon component
  * @param {Array<[string, number]>} props.rankings - Array of [name, score] tuples
  * @param {function} [props.formatValue] - Custom value formatter (default: toFixed(0))
- * @param {string} [props.color='#6366f1'] - Theme color for bars
+ * @param {string} [props.color='#2d9c9c'] - Theme color for bars
  * @param {number} [props.maxItems=10] - Max items to show
  * @param {boolean} [props.showBar=true] - Whether to show score bars
  * @param {function} [props.getSubtitle] - Optional function to get subtitle for each item
@@ -24,7 +24,7 @@ const RankingCard = ({
     icon: Icon,
     rankings = [],
     formatValue = (v) => typeof v === 'number' ? v.toFixed(0) : v,
-    color = '#6366f1',
+    color = '#2d9c9c',
     maxItems = 10,
     showBar = true,
     getSubtitle = null
@@ -61,7 +61,7 @@ const RankingCard = ({
                     {displayItems.map(([name, score], idx) => {
                         const percentage = maxScore > 0 ? (Math.abs(score) / maxScore) * 100 : 0;
                         const positionClass = idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : '';
-                        
+
                         return (
                             <div key={name} className="ranking-item">
                                 <span className={`ranking-position ${positionClass}`}>

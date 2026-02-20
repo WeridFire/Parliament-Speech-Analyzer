@@ -21,9 +21,9 @@
     justify-content: center;
     width: 64px;
     height: 64px;
-    background: rgba(99, 102, 241, 0.1);
+    background: rgba(45, 156, 156, 0.1);
     border-radius: 50%;
-    color: #6366f1;
+    color: #2d9c9c;
     margin-bottom: 1rem;
 }
 
@@ -43,7 +43,7 @@
 }
 
 .no-data-message p strong {
-    color: #a5b4fc;
+    color: #5ec2c2;
 }
 
 .no-data-hint {
@@ -52,9 +52,9 @@
     gap: 6px;
     margin-top: 1rem;
     padding: 8px 16px;
-    background: rgba(99, 102, 241, 0.1);
-    border: 1px solid rgba(99, 102, 241, 0.2);
+    background: rgba(45, 156, 156, 0.1);
+    border: 1px solid rgba(45, 156, 156, 0.2);
     border-radius: var(--radius-sm, 6px);
     font-size: 0.8rem;
-    color: #a5b4fc;
+    color: #5ec2c2;
 }

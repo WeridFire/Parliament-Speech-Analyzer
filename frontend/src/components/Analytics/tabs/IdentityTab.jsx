@@ -49,9 +49,9 @@ const IdentityTab = ({ analytics, clusters, selectedPeriod }) => {
                 r: [...values, values[0]], // Close the polygon
                 theta: [...clusterLabels, clusterLabels[0]],
                 fill: 'toself',
-                fillcolor: 'rgba(99, 102, 241, 0.2)',
-                line: { color: '#6366f1', width: 2 },
-                marker: { size: 6, color: '#6366f1' },
+                fillcolor: 'rgba(45, 156, 156, 0.2)',
+                line: { color: '#2d9c9c', width: 2 },
+                marker: { size: 6, color: '#2d9c9c' },
                 name: selectedParty
             }],
             layout: {

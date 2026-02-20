@@ -5,7 +5,7 @@ import React, { useRef, useEffect, useMemo } from 'react';
 
 // Vibrant color palette
 const COLORS = [
-    '#818cf8', '#a78bfa', '#c084fc', '#22d3ee', '#34d399',
+    '#5ec2c2', '#d4943a', '#c084fc', '#22d3ee', '#34d399',
     '#fbbf24', '#fb7185', '#60a5fa', '#4ade80', '#f472b6',
 ];
 

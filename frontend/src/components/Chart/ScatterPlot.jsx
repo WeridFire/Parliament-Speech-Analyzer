@@ -190,7 +190,7 @@ const ScatterPlot = () => {
             hovermode: 'closest',
             dragmode: 'zoom',
             showlegend: true,
-            legend: { x: 1.02, y: 1, bgcolor: 'rgba(26, 26, 46, 0.95)', font: { color: '#e5e5e5' } },
+            legend: { x: 1.02, y: 1, bgcolor: 'rgba(27, 31, 36, 0.95)', font: { color: '#e5e5e5' } },
             margin: { l: 50, r: 20, t: 20, b: 50 },
             plot_bgcolor: 'rgba(0,0,0,0)',
             paper_bgcolor: 'rgba(0,0,0,0)',

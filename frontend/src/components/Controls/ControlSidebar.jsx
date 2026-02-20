@@ -76,10 +76,10 @@ const ControlSidebar = ({ onGoHome, onGoAnalytics }) => {
                             alignItems: 'center',
                             gap: '4px',
                             padding: '6px 10px',
-                            background: 'rgba(99, 102, 241, 0.15)',
-                            border: '1px solid rgba(99, 102, 241, 0.3)',
+                            background: 'rgba(45, 156, 156, 0.15)',
+                            border: '1px solid rgba(45, 156, 156, 0.3)',
                             borderRadius: '6px',
-                            color: '#a5b4fc',
+                            color: '#5ec2c2',
                             fontSize: '12px',
                             cursor: 'pointer',
                             transition: 'all 0.2s'
@@ -331,12 +331,12 @@ const ControlSidebar = ({ onGoHome, onGoAnalytics }) => {
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: '4px',
-                                        background: 'rgba(99, 102, 241, 0.2)',
-                                        border: '1px solid rgba(99, 102, 241, 0.4)',
+                                        background: 'rgba(45, 156, 156, 0.2)',
+                                        border: '1px solid rgba(45, 156, 156, 0.4)',
                                         padding: '4px 8px',
                                         borderRadius: '14px',
                                         fontSize: '11px',
-                                        color: '#a5b4fc'
+                                        color: '#5ec2c2'
                                     }}>
                                         <span>{deputyName}</span>
                                         <button
@@ -344,7 +344,7 @@ const ControlSidebar = ({ onGoHome, onGoAnalytics }) => {
                                             style={{
                                                 background: 'none',
                                                 border: 'none',
-                                                color: '#a5b4fc',
+                                                color: '#5ec2c2',
                                                 cursor: 'pointer',
                                                 padding: '0',
                                                 display: 'flex',
@@ -390,7 +390,7 @@ const ControlSidebar = ({ onGoHome, onGoAnalytics }) => {
                     className="guide-btn party-analysis-btn"
                     onClick={() => setShowPartyAnalysis(true)}
                     style={{
-                        background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                        background: '#2d9c9c',
                         border: 'none',
                         color: '#fff',
                         fontWeight: '600',

@@ -26,11 +26,11 @@ const RANKING_CATEGORIES = [
     { id: 'most_self_referential', label: 'Più Autoreferenziali', icon: Users, color: '#ec4899', unit: '/1k' },
     { id: 'most_negative', label: 'Più Negativi', icon: TrendingDown, color: '#ef4444', unit: '/1k' },
     { id: 'most_future_oriented', label: 'Orientati al Futuro', icon: TrendingUp, color: '#06b6d4', unit: '/1k' },
-    { id: 'most_data_driven', label: 'Più Data-Driven', icon: Target, color: '#8b5cf6', unit: '/1k' },
+    { id: 'most_data_driven', label: 'Più Data-Driven', icon: Target, color: '#d4943a', unit: '/1k' },
     { id: 'most_consistent', label: 'Più Coerenti', icon: Target, color: '#22c55e', unit: '%' },
     { id: 'most_variable', label: 'Più Variabili', icon: Target, color: '#f59e0b', unit: '%' },
     { id: 'most_regular', label: 'Più Regolari', icon: Calendar, color: '#22c55e', unit: '%' },
-    { id: 'richest_vocabulary', label: 'Vocabolario Più Ricco', icon: BookOpen, color: '#8b5cf6', unit: 'score' },
+    { id: 'richest_vocabulary', label: 'Vocabolario Più Ricco', icon: BookOpen, color: '#d4943a', unit: 'score' },
     { id: 'most_connected', label: 'Più Connessi', icon: Network, color: '#06b6d4', unit: 'score' }
 ];
 
@@ -175,7 +175,7 @@ const SpeakerStatsTab = ({ analytics, clusters, selectedPeriod }) => {
                                     title={currentRanking.category?.label || 'Classifica'}
                                     icon={currentRanking.category?.icon || TrendingUp}
                                     rankings={currentRanking.data}
-                                    color={currentRanking.category?.color || '#6366f1'}
+                                    color={currentRanking.category?.color || '#2d9c9c'}
                                     maxItems={10}
                                     formatValue={(v) => `${v.toFixed(1)} ${currentRanking.category?.unit || ''}`}
                                 />

@@ -64,11 +64,11 @@
 
 .source-badge {
     padding: 4px 10px;
-    background: rgba(99, 102, 241, 0.2);
-    border: 1px solid rgba(99, 102, 241, 0.3);
+    background: rgba(45, 156, 156, 0.2);
+    border: 1px solid rgba(45, 156, 156, 0.3);
     border-radius: 12px;
     font-size: 11px;
-    color: #a5b4fc;
+    color: #5ec2c2;
     font-weight: 500;
 }
 
@@ -99,7 +99,7 @@
 }
 
 .source-btn.active {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    background: #2d9c9c;
     color: #fff;
 }
 
@@ -279,11 +279,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(99, 102, 241, 0.2);
+    background: rgba(45, 156, 156, 0.2);
     border-radius: 50%;
     font-size: 12px;
     font-weight: 600;
-    color: #a5b4fc;
+    color: #5ec2c2;
 }
 
 .ranking-position.gold {
@@ -323,7 +323,7 @@
 .ranking-value {
     font-weight: 600;
     font-size: 14px;
-    color: #a5b4fc;
+    color: #5ec2c2;
 }
 
 /* Score Bars */
@@ -363,11 +363,11 @@
 
 .keyword-tag {
     padding: 6px 12px;
-    background: rgba(99, 102, 241, 0.15);
-    border: 1px solid rgba(99, 102, 241, 0.3);
+    background: rgba(45, 156, 156, 0.15);
+    border: 1px solid rgba(45, 156, 156, 0.3);
     border-radius: 16px;
     font-size: 12px;
-    color: #a5b4fc;
+    color: #5ec2c2;
 }
 
 /* Party Selector */
@@ -394,9 +394,9 @@
 }
 
 .party-chip.selected {
-    background: rgba(99, 102, 241, 0.2);
-    border-color: rgba(99, 102, 241, 0.5);
-    color: #a5b4fc;
+    background: rgba(45, 156, 156, 0.2);
+    border-color: rgba(45, 156, 156, 0.5);
+    color: #5ec2c2;
 }
 
 /* Empty State */
@@ -498,11 +498,11 @@
 
 .period-badge {
     padding: 4px 10px;
-    background: rgba(99, 102, 241, 0.15);
-    border: 1px solid rgba(99, 102, 241, 0.25);
+    background: rgba(45, 156, 156, 0.15);
+    border: 1px solid rgba(45, 156, 156, 0.25);
     border-radius: 12px;
     font-size: 11px;
-    color: #a5b4fc;
+    color: #5ec2c2;
     font-weight: 500;
     white-space: nowrap;
 }
@@ -519,7 +519,7 @@
         flex-wrap: wrap;
         gap: 6px;
     }
-    
+
     .period-badge {
         display: none;
     }
@@ -804,11 +804,11 @@
 
 .topic-badge {
     padding: 6px 12px;
-    background: rgba(99, 102, 241, 0.15);
-    border: 1px solid rgba(99, 102, 241, 0.3);
+    background: rgba(45, 156, 156, 0.15);
+    border: 1px solid rgba(45, 156, 156, 0.3);
     border-radius: 16px;
     font-size: 12px;
-    color: #a5b4fc;
+    color: #5ec2c2;
 }
 
 .topic-badge.leader {
@@ -861,7 +861,7 @@
     .profile-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .profile-section.linguistic-radar,
     .profile-section.topic-leadership {
         grid-column: span 1;
