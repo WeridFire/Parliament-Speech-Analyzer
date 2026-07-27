@@ -1,110 +1,57 @@
-import React, { useState } from 'react';
-import { useAppState } from './contexts/StateContext';
-import HomePage from './components/HomePage';
-import ControlSidebar from './components/Controls/ControlSidebar';
-import RebelsPanel from './components/Panels/RebelsPanel';
-import ScatterPlot from './components/Chart/ScatterPlot';
-import SpeechModal from './components/Modals/SpeechModal';
-import RebelModal from './components/Modals/RebelModal';
-import AnalyticsDashboard from './components/Analytics/AnalyticsDashboard';
-import { Loader, PanelLeftClose, PanelLeft, PanelRightClose, PanelRight } from 'lucide-react';
+import { Navigate, Route, Routes } from 'react-router';
+import { AppShell } from './layout/AppShell';
+import { ChamberBoundary } from './app/ChamberBoundary';
+import Home from './routes/Home';
+import MapRoute from './routes/Map';
+import Method from './routes/Method';
+import AnalysisLayout from './routes/analysis/AnalysisLayout';
+import Identity from './routes/analysis/Identity';
+import Relations from './routes/analysis/Relations';
+import Temporal from './routes/analysis/Temporal';
+import Qualitative from './routes/analysis/Qualitative';
+import Speakers from './routes/analysis/Speakers';
 
-const App = () => {
-  // Page navigation: 'home' | 'mappa' | 'analytics'
-  const [currentPage, setCurrentPage] = useState('home');
-
-  const {
-    data, loading, error,
-    modal, closeModal,
-    leftSidebarOpen, toggleLeftSidebar,
-    rightSidebarOpen, toggleRightSidebar
-  } = useAppState();
-
-  // Home Page
-  if (currentPage === 'home') {
-    return (
-      <HomePage
-        onEnter={() => setCurrentPage('mappa')}
-        onAnalytics={() => setCurrentPage('analytics')}
-      />
-    );
-  }
-
-  // Analytics Dashboard
-  if (currentPage === 'analytics') {
-    return (
-      <AnalyticsDashboard
-        onBack={() => setCurrentPage('mappa')}
-      />
-    );
-  }
-
-  // Mappa Semantica (main visualization)
-  if (loading) return (
-    <div className="loading-screen">
-      <Loader className="animate-spin" size={48} />
-      <span>Caricamento mappa semantica...</span>
-    </div>
-  );
-
-  if (error) return (
-    <div className="error-screen">
-      <h2>Errore nel caricamento</h2>
-      <p>{error.message}</p>
-    </div>
-  );
-
+/**
+ * Routing only. Every data-dependent branch sits under ChamberBoundary, which
+ * reads `?fonte=` and owns the loading and error states.
+ *
+ * Replaces `useState('home' | 'mappa' | 'analytics')` — twelve views at one URL
+ * with no history and no shareable state.
+ */
+export default function App() {
   return (
-    <div className="app-container">
-      {/* Left Sidebar Toggle */}
-      <button
-        className={`sidebar-toggle left ${!leftSidebarOpen ? 'collapsed' : ''}`}
-        onClick={toggleLeftSidebar}
-        title={leftSidebarOpen ? 'Chiudi controlli' : 'Apri controlli'}
-      >
-        {leftSidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
-      </button>
+    <Routes>
+      <Route element={<AppShell />}>
+        <Route index element={<Home />} />
+        <Route path="metodo" element={<Method />} />
 
-      {/* Left Sidebar */}
-      {leftSidebarOpen && (
-        <ControlSidebar
-          onGoHome={() => setCurrentPage('home')}
-          onGoAnalytics={() => setCurrentPage('analytics')}
+        <Route
+          path="mappa"
+          element={
+            <ChamberBoundary>
+              <MapRoute />
+            </ChamberBoundary>
+          }
         />
-      )}
 
-      {/* Main Content */}
-      <main className="main-content">
-        <ScatterPlot />
-      </main>
+        <Route
+          path="analisi"
+          element={
+            <ChamberBoundary>
+              <AnalysisLayout />
+            </ChamberBoundary>
+          }
+        >
+          <Route index element={<Navigate to="identita" replace />} />
+          <Route path="identita" element={<Identity />} />
+          <Route path="relazioni" element={<Relations />} />
+          <Route path="tendenze" element={<Temporal />} />
+          <Route path="qualita" element={<Qualitative />} />
+          <Route path="parlamentari" element={<Speakers />} />
+        </Route>
 
-      {/* Right Sidebar */}
-      {rightSidebarOpen && <RebelsPanel />}
-
-      {/* Right Sidebar Toggle */}
-      <button
-        className={`sidebar-toggle right ${!rightSidebarOpen ? 'collapsed' : ''}`}
-        onClick={toggleRightSidebar}
-        title={rightSidebarOpen ? 'Chiudi rebels' : 'Apri rebels'}
-      >
-        {rightSidebarOpen ? <PanelRightClose size={18} /> : <PanelRight size={18} />}
-      </button>
-
-      {/* Modals */}
-      {modal.isOpen && modal.type === 'speech' && (
-        <SpeechModal speech={modal.data} onClose={closeModal} />
-      )}
-
-      {modal.isOpen && modal.type === 'rebel' && (
-        <RebelModal
-          rebelData={modal.data}
-          clusters={data.clusters}
-          onClose={closeModal}
-        />
-      )}
-    </div>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
   );
-};
-
-export default App;
-
+}

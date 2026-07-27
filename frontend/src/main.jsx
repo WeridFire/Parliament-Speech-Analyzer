@@ -1,14 +1,18 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { HashRouter } from 'react-router';
 import App from './App';
-import { StateProvider } from './contexts/StateContext';
-// Import global styles ported from the old app
-import './styles/global.css';
+import './styles/base.css';
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <StateProvider>
+/**
+ * HashRouter rather than BrowserRouter: the site deploys to GitHub Pages under
+ * a project sub-path, where a real path route would 404 on direct load without
+ * a server-side rewrite. Hash routing needs no such configuration.
+ */
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <HashRouter>
       <App />
-    </StateProvider>
-  </React.StrictMode>
+    </HashRouter>
+  </StrictMode>,
 );

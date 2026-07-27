@@ -10,11 +10,14 @@ export default defineConfig([
     files: ['**/*.{js,jsx}'],
     extends: [
       js.configs.recommended,
-      reactHooks.configs.flat.recommended,
+      // The installed eslint-plugin-react-hooks is v5, which exposes its flat
+      // config as `recommended-latest`. `configs.flat.recommended` only exists
+      // from v6 and was throwing at config load time.
+      reactHooks.configs['recommended-latest'],
       reactRefresh.configs.vite,
     ],
     languageOptions: {
-      ecmaVersion: 2020,
+      ecmaVersion: 2022,
       globals: globals.browser,
       parserOptions: {
         ecmaVersion: 'latest',
