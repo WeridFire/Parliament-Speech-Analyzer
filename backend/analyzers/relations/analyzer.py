@@ -21,6 +21,9 @@ class RelationsAnalyzer(BaseAnalyzer):
     name = "relations"
     description = "Party relationships and affinities"
     version = "1.0"
+
+    # Pairwise party affinity needs enough speeches per party, not just overall.
+    min_speeches = 200
     
     default_features = {
         'affinity_matrix': True,

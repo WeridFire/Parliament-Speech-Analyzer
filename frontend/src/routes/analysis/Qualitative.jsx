@@ -8,7 +8,6 @@ import { topicShort } from '../../domain/topics';
 import { cleanName } from '../../data/selectors';
 import { dec, signed } from '../../lib/format';
 import { NoDataForPeriod } from '../../ui/EmptyState';
-import { ClassificationTag } from '../../ui/Chip';
 
 /**
  * Sentiment, readability and polarization.
@@ -67,14 +66,20 @@ export default function Qualitative() {
     [readability, mode],
   );
 
+  /**
+   * The bar shows the percentile — a claim the data supports ("more oppositional
+   * phrasing than N% of colleagues") — while the printed value is the raw rate in
+   * its actual unit. The backend previously emitted a single clamped 0–100 score
+   * on which every heavy user of these markers tied at the maximum.
+   */
   const polarizers = useMemo(
     () =>
       (polarization?.top_polarizers ?? []).slice(0, 10).map((p) => ({
         key: `${p.speaker}-${p.party}`,
         name: cleanName(p.speaker),
-        meta: partyShort(p.party),
-        percent: p.score,
-        value: dec(p.score),
+        meta: `${partyShort(p.party)} · ${p.n ?? 0} interventi`,
+        percent: p.pct,
+        value: dec(p.raw),
         tone: 'critical',
         dot: partyDot(p.party, mode),
       })),
@@ -145,15 +150,15 @@ export default function Qualitative() {
         <CardHeader
           title="Polarizzazione del linguaggio"
           subtitle="Contrapposizioni «noi/loro» ogni mille parole"
-          actions={
-            polarization?.by_party?.classification ? (
-              <ClassificationTag value={polarization.by_party.classification} />
-            ) : null
-          }
         />
         <CardBody>
           <RankingList items={polarizers} />
         </CardBody>
+        <CardFooter>
+          LA BARRA INDICA LA POSIZIONE RELATIVA RISPETTO AGLI ALTRI PARLAMENTARI; IL VALORE È LA
+          FREQUENZA DEI MARCATORI OGNI MILLE PAROLE. RIGUARDA LA FORMA DEL LINGUAGGIO, NON IL
+          CONTENUTO DELLE POSIZIONI.
+        </CardFooter>
       </Card>
 
       {ranking ? (

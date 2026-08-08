@@ -6,7 +6,6 @@ This package provides a modular, configurable system for analyzing political spe
 Core Components:
 - BaseAnalyzer: Abstract base class for all analyzers
 - AnalyzerRegistry: Auto-discovery of analyzer classes
-- CacheManager: Unified caching system
 - AnalyticsOrchestrator: Run all enabled analyzers
 
 Available Analyzers:
@@ -41,7 +40,6 @@ Usage:
 # Core infrastructure
 from .base import BaseAnalyzer
 from .registry import AnalyzerRegistry, analyzer
-from .cache import CacheManager
 from .config_loader import load_config, DEFAULT_CONFIG
 from .orchestrator import AnalyticsOrchestrator, run_analytics
 
@@ -115,7 +113,6 @@ __all__ = [
     'BaseAnalyzer',
     'AnalyzerRegistry',
     'analyzer',
-    'CacheManager',
     'load_config',
     'DEFAULT_CONFIG',
     'AnalyticsOrchestrator',

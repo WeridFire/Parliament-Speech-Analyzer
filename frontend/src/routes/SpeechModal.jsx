@@ -7,15 +7,15 @@ import { useTheme } from '../lib/useTheme';
 /**
  * A single intervention.
  *
- * Renders `snippet`, not `text`: despite the names, `text` is the lowercased,
- * procedurally-cleaned copy truncated to 500 characters, while `snippet` holds
- * the full original-case text. The old modal showed the truncated lowercase one.
+ * `text` is the original-case speech as delivered. It is truncated for the
+ * payload, so the link to the official report is the way to read the whole
+ * thing.
  */
 export function SpeechModal({ speech, clusters, onClose }) {
   const { mode } = useTheme();
   if (!speech) return null;
 
-  const body = speech.snippet || speech.text || '';
+  const body = speech.text || '';
   const topic = speech.cluster_label ?? clusters?.[speech.cluster]?.label;
 
   return (

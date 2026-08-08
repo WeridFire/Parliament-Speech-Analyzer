@@ -18,6 +18,10 @@ class FactionsAnalyzer(BaseAnalyzer):
     name = "factions"
     description = "Internal party divisions and factions"
     version = "1.0"
+
+    # Conformity compares a member against their party's centroid; too few
+    # speeches and the centroid is essentially that member.
+    min_speeches = 150
     
     default_features = {
         'conformity': True,

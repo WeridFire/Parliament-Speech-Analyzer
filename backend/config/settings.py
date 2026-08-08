@@ -19,8 +19,15 @@ LEGISLATURE = 19
 # Minimum word count for a speech to be included
 MIN_WORDS = 30
 
-# Minimum number of speeches for a deputy to be displayed in frontend
-MIN_SPEECHES_DISPLAY = 1
+# Minimum number of speeches for a deputy to be displayed in frontend.
+# At 1, a single intervention produced a map position and a "dominant topic"
+# indistinguishable from a member with hundreds of speeches. The frontend was
+# already filtering at 5 client-side; the backend now agrees.
+MIN_SPEECHES_DISPLAY = 5
+
+# Characters of speech text carried in the payload for display purposes.
+# The full text stays one click away behind the speech's own `url`.
+DISPLAY_TEXT_CHARS = 600
 
 # Maximum age (in days) for cached data before automatic refresh
 CACHE_MAX_AGE_DAYS = 31
@@ -32,6 +39,14 @@ CACHE_MAX_AGE_DAYS = 31
 
 # Number of semantic clusters for K-Means (used if TOPIC_CLUSTERS is None)
 N_CLUSTERS = 12
+
+# Topic assignment is a nearest-neighbour match against topic descriptions, so
+# without a floor every speech is forced into a topic - including procedural
+# remarks that are about nothing. Below this cosine similarity a speech is left
+# unclassified instead of being attributed to the least-bad match.
+TOPIC_MIN_SIMILARITY = 0.20
+UNCLASSIFIED_CLUSTER = -1
+UNCLASSIFIED_LABEL = "Non classificato"
 
 # Embedding model (multilingual)
 EMBEDDING_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"

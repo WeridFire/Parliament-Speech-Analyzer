@@ -95,13 +95,15 @@ export function classify(value) {
  * Anything rendered as a bar or a percentage must consult this.
  */
 export const SCALES = {
-  rebel_pct: 'pct',
+  divergence_pct: 'pct',
   generalism_score: 'pct',
   consistency_score: 'pct',
   regularity_score: 'pct',
   activity_ratio: 'pct',
   burst_score: 'pct',
-  polarization_score: 'pct',
+  // Lexicon metrics emit {raw, pct, n}: `pct` is a percentile, `raw` has its
+  // own unit and no ceiling, so only `pct` belongs on a 0-100 scale.
+  polarization_pct: 'pct',
   readability_score: 'pct',
   overlap_score: 'pct',
 

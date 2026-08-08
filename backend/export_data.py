@@ -20,25 +20,31 @@ sys.path.insert(0, str(SCRIPT_DIR.parent))
 
 import numpy as np
 import pandas as pd
-from sentence_transformers import SentenceTransformer
 
 # Import reusable functions from pipeline
-from backend.pipeline import generate_embeddings, reduce_dimensions, apply_clustering
+from backend.pipeline import (
+    apply_clustering,
+    generate_embeddings,
+    get_embedding_model,
+    reduce_dimensions,
+)
 
 # Import from backend package
-from backend.scrapers import fetch_all_speeches
+from backend.ingestion import fetch_all_speeches
 from backend.utils import clean_text, show_cache_info, clear_cache
 
 # Import core functionality
 from backend.core import (
+    SpeechDataset,
     load_cached_speeches,
     save_speeches_cache,
     load_cached_embeddings,
     save_embeddings_cache,
     assign_topics_by_semantics,
-    compute_rebel_scores,
+    compute_divergence_scores,
     compute_source_output
 )
+from backend.core.artifacts import ArtifactWriter
 
 # Import analyzers
 from backend.analyzers import (
@@ -59,6 +65,8 @@ from backend.config import (
     DATA_SOURCE,
     PARTY_NORMALIZATION,
     CACHE_MAX_AGE_DAYS,
+    UNCLASSIFIED_CLUSTER,
+    UNCLASSIFIED_LABEL,
 )
 
 # Configure logging
@@ -90,7 +98,15 @@ def convert_numpy_types(obj):
         return obj
 
 
-def main(force_refetch: bool = False, force_reembed: bool = False, n_clusters_override: int = None, source: str = None, use_transformer_sentiment: bool = False, use_cloudscraper: bool = False):
+def main(
+    force_refetch: bool = False,
+    force_reembed: bool = False,
+    n_clusters_override: int = None,
+    source: str = None,
+    use_cloudscraper: bool = False,
+    max_cache_age_days: int = CACHE_MAX_AGE_DAYS,
+    strict: bool = False,
+):
     # Use override or config values
     n_clusters = n_clusters_override if n_clusters_override else N_CLUSTERS
     data_source = source if source else DATA_SOURCE
@@ -98,9 +114,9 @@ def main(force_refetch: bool = False, force_reembed: bool = False, n_clusters_ov
     logger.info("Starting data export for web visualization")
     logger.info("Configuration: months_back=%d, clusters=%d, source=%s", MONTHS_BACK, n_clusters, data_source)
     
-    # Try to load cached speeches
+    # Try to load cached speeches (stale caches are ignored rather than reused)
     if not force_refetch:
-        df = load_cached_speeches(data_source)
+        df = load_cached_speeches(data_source, max_age_days=max_cache_age_days)
     else:
         df = None
         
@@ -149,23 +165,21 @@ def main(force_refetch: bool = False, force_reembed: bool = False, n_clusters_ov
     normalized_parties = df['group'].unique().tolist()
     logger.info("Normalized party names: %d -> %d unique parties", len(original_parties), len(normalized_parties))
     
-    # Try to load cached embeddings
+    # Embeddings are cached against a fingerprint of the exact texts they encode,
+    # so a corpus that changed without changing size cannot reuse stale vectors.
+    corpus_fingerprint = SpeechDataset(df=df).fingerprint(model=EMBEDDING_MODEL)
+
     embeddings = None
-    if not force_reembed and not force_refetch:
-        embeddings = load_cached_embeddings(data_source)
-        if embeddings is not None and len(embeddings) != len(df):
-            logger.warning("Embeddings cache size mismatch (cache=%d, data=%d), regenerating...", len(embeddings), len(df))
-            embeddings = None
-            
+    if not force_reembed:
+        embeddings = load_cached_embeddings(data_source, corpus_fingerprint)
+
     if embeddings is None:
         logger.info("Generating embeddings (this may take a while)...")
         embeddings = generate_embeddings(df['cleaned_text'].tolist(), model_name=EMBEDDING_MODEL)
-        save_embeddings_cache(embeddings, data_source)
-    else:
-        logger.info("Loaded embeddings from cache")
+        save_embeddings_cache(embeddings, data_source, corpus_fingerprint)
     
-    # Dimensionality reduction using pipeline function
-    coords = reduce_dimensions(embeddings, method='pca')
+    # Dimensionality reduction (method comes from config)
+    coords = reduce_dimensions(embeddings)
     df['x'] = coords[:, 0]
     df['y'] = coords[:, 1]
     
@@ -175,152 +189,80 @@ def main(force_refetch: bool = False, force_reembed: bool = False, n_clusters_ov
     if TOPIC_CLUSTERS:
         logger.info("Assigning topics by semantic similarity (%d topics)", len(TOPIC_CLUSTERS))
         
-        # Load model for topic embedding
-        model = SentenceTransformer(EMBEDDING_MODEL)
-            
-        assignments, scores = assign_topics_by_semantics(embeddings, model, TOPIC_CLUSTERS)
+        # Reuses the process-wide model rather than loading a second copy
+        model = get_embedding_model(EMBEDDING_MODEL)
+
+        assignments, scores, confidence = assign_topics_by_semantics(
+            embeddings, model, TOPIC_CLUSTERS
+        )
         df['cluster'] = assignments
+        df['cluster_conf'] = confidence
         topic_scores = scores
         n_clusters = len(TOPIC_CLUSTERS)
-        
+
         # Use custom labels from config
         cluster_labels = {cid: info['label'] for cid, info in TOPIC_CLUSTERS.items()}
         cluster_topics = {cid: info['keywords'][:5] for cid, info in TOPIC_CLUSTERS.items()}
+
+        # Speeches too far from every topic are labelled rather than forced.
+        cluster_labels[UNCLASSIFIED_CLUSTER] = UNCLASSIFIED_LABEL
+        cluster_topics[UNCLASSIFIED_CLUSTER] = []
     else:
         # Use shared clustering function from pipeline
         df['cluster'] = apply_clustering(embeddings, n_clusters=n_clusters)
-        
+
         # Auto-generate labels and keywords
         cluster_labels = get_cluster_labels(df)
         cluster_topics = extract_cluster_topics(df, top_n=5)
-    
+
     # Compute cluster centroids for advanced analytics
     logger.info("Computing cluster centroids...")
     cluster_centroids = np.zeros((n_clusters, embeddings.shape[1]))
     for cid in range(n_clusters):
-        mask = df['cluster'] == cid
+        mask = (df['cluster'] == cid).to_numpy()
         if mask.sum() > 0:
             cluster_centroids[cid] = embeddings[mask].mean(axis=0)
-    
+
     df['cluster_label'] = df['cluster'].map(cluster_labels)
-    
+
+    # Keep the original-case text for display; `cleaned_text` is for the models.
+    df['raw_text'] = df['text']
+
     # Add rhetoric scores
     logger.info("Analyzing rhetoric patterns...")
     df = add_rhetoric_scores(df)
     df['rhetoric_style'] = df.apply(classify_rhetorical_style, axis=1)
-    
-    # Compute conformity/rebel info
-    logger.info("Computing rebel scores...")
-    conformity_df = compute_senator_conformity(df, embeddings)
-    rebel_scores = compute_rebel_scores(df, conformity_df)
-    
-    # ========================================================================
-    # NEW: Compute advanced analytics with AnalyticsOrchestrator
-    # ========================================================================
-    logger.info("Computing advanced analytics with new architecture...")
-    orchestrator = AnalyticsOrchestrator(
-        df=df,
-        embeddings=embeddings,
-        cluster_labels=cluster_labels,
-        cluster_centroids=cluster_centroids,
-        source='combined',
-        enable_cache=False,  # Don't cache combined results
-        text_col='cleaned_text',
-        speaker_col='deputy',
-        party_col='group',
-        cluster_col='cluster',
-        date_col='date',
-    )
-    
-    # Run all enabled analyzers
-    analytics_data = orchestrator.run_all(use_cache=False)
-    logger.info("Advanced analytics computed successfully")
-    
-    # Prepare cluster metadata
-    cluster_meta = {}
-    for cid in df['cluster'].unique():
-        keywords = cluster_topics.get(cid, [])
-        label = cluster_labels.get(cid, f"Cluster {cid}")
-        count = len(df[df['cluster'] == cid])
-        cluster_meta[int(cid)] = {
-            'label': label,
-            'keywords': keywords,
-            'count': count
-        }
-    
-    # Prepare speeches data used for export
-    speeches_data = []
-    has_scores = topic_scores is not None
-    
-    for idx, row in df.iterrows():
-        deputy = row['deputy']
-        rebel_info = rebel_scores.get(deputy, {})
-        
-        speech_obj = {
-            'deputy': deputy,
-            'party': row['group'],
-            'date': row['date'],
-            'text': row['cleaned_text'][:500],
-            'snippet': row['text'],
-            'x': float(row['x']),
-            'y': float(row['y']),
-            'cluster': int(row['cluster']),
-            'cluster_label': row['cluster_label'],
-            'rhetoric_style': row['rhetoric_style'],
-            'rebel_pct': rebel_info.get('rebel_pct', 0),
-            'source': row.get('source', 'senate'),
-            'url': row.get('url', '')
-        }
-        
-        if has_scores:
-            # Add similarity scores for custom projection (round to 3 decimals)
-            speech_obj['topic_scores'] = [round(float(s), 3) for s in topic_scores[idx]]
-            
-        speeches_data.append(speech_obj)
-    
-    # We need deputies_data for threading arguments, so check backend.core.aggregation for implementation
-    from backend.core.aggregation import compute_deputies_by_period
-    
-    # == Deputy-level aggregation with period breakdowns ==
-    logger.info("Aggregating speeches by deputy with period breakdowns...")
-    deputies_by_period = compute_deputies_by_period(
-        df, topic_scores, cluster_labels, rebel_scores, date_col='date'
-    )
-    # For backwards compatibility, keep flat list at top level
-    deputies_data = deputies_by_period['global']
-    
-    # Determine which sources are in the data
-    sources_in_data = df['source'].unique() if 'source' in df.columns else ['senate']
-    
-    # Map deputy -> source
-    if 'source' in df.columns:
-        deputy_sources = df[['deputy', 'source']].drop_duplicates().set_index('deputy')['source'].to_dict()
-    else:
-        deputy_sources = {d: 'senate' for d in df['deputy'].unique()}
 
-    # Prepare arguments for parallel processing
+    # Thematic divergence from each party's dominant theme
+    logger.info("Computing thematic divergence scores...")
+    conformity_df = compute_senator_conformity(df, embeddings)
+    divergence_scores = compute_divergence_scores(df, conformity_df)
+    
+    # Analytics are computed per source in compute_source_output(), which is what
+    # the payload actually ships. A combined-corpus pass used to run here and be
+    # discarded - every analyzer over every speech, for nothing.
+
+    # One dataset object keeps the frame, embeddings and topic scores in step;
+    # every per-source slice below is taken from it positionally.
+    dataset = SpeechDataset(df=df, embeddings=embeddings, topic_scores=topic_scores)
+
+    sources_in_data = df['source'].unique() if 'source' in df.columns else ['senate']
+
+    # Each worker receives only its own chamber's data. Previously every worker
+    # was handed every chamber's speeches and deputies and filtered them back
+    # down, which meant pickling the entire corpus once per source.
     parallel_args = []
     for src in sources_in_data:
-        if 'source' in df.columns:
-            # Filter DataFrame and embeddings for this source
-            source_df = df[df['source'] == src].reset_index(drop=True)
-            source_embeddings = embeddings[df['source'] == src]
-            source_topic_scores = topic_scores[df['source'] == src] if topic_scores is not None else None
-        else:
-            source_df = df
-            source_embeddings = embeddings
-            source_topic_scores = topic_scores
-        
-        # Pack arguments for this source
-        args = (
-            src, source_df, source_embeddings, cluster_labels, cluster_topics,
-            source_topic_scores, rebel_scores, deputy_sources, speeches_data, 
-            deputies_data, cluster_centroids
+        source_dataset = (
+            dataset.subset(df['source'] == src) if 'source' in df.columns else dataset
         )
-        parallel_args.append(args)
-    
+        parallel_args.append((
+            src, source_dataset, cluster_labels, cluster_topics,
+            divergence_scores, cluster_centroids,
+        ))
+
     # Create output directory
-    output_dir = SCRIPT_DIR.parent / 'frontend' / 'public'
+    output_dir = SCRIPT_DIR.parent / 'frontend' / 'public' / 'data'
     output_dir.mkdir(exist_ok=True, parents=True)
     
     # Process sources in parallel if we have multiple sources
@@ -348,19 +290,39 @@ def main(force_refetch: bool = False, force_reembed: bool = False, n_clusters_ov
         logger.info("Processing single source sequentially...")
         results = [compute_source_output(parallel_args[0])]
     
-    # Write output files
+    # Write the chunked payload: a small manifest plus resources the frontend
+    # fetches on demand, instead of one file it must download in full to render
+    # anything.
+    writer = ArtifactWriter(output_dir)
+    chambers = []
+    failed_analyzers = set()
+
     for src, source_output, filename in results:
-        output_file = output_dir / f'{filename}.json'
-        
-        # Convert numpy types to native Python types before dumping
-        source_output = convert_numpy_types(source_output)
-        
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(source_output, f, ensure_ascii=False, indent=2)
-        logger.info("Exported %d speeches to %s", source_output['stats']['total_speeches'], output_file)
-    
-    logger.info("Export completed: %d total speeches", len(speeches_data))
-    logger.info("Files created: %s", ', '.join(f'{filename}.json' for _, _, filename in results))
+        analytics = source_output.pop('analytics')
+        speeches = source_output.pop('speeches')
+
+        chambers.append(writer.write_chamber(
+            chamber=src,
+            filename=filename,
+            core=source_output,
+            speeches=speeches,
+            analytics=analytics,
+        ))
+
+        failed_analyzers.update(source_output['stats']['analytics_run'].get('failed_analyzers', []))
+        logger.info("Exported %s: %d speeches", filename, len(speeches))
+
+    writer.write_manifest(chambers)
+
+    logger.info("Export completed\n%s", writer.size_report())
+
+    for violation in writer.budget_violations():
+        logger.warning("Size budget exceeded: %s", violation)
+
+    if failed_analyzers:
+        logger.error("Analyzers that failed during this run: %s", sorted(failed_analyzers))
+        if strict:
+            raise SystemExit(f"Run failed: {sorted(failed_analyzers)}")
 
 
 if __name__ == "__main__":
@@ -384,10 +346,8 @@ Examples:
                         help=f'Data source (default: {DATA_SOURCE} from config)')
     
     # Analysis options
-    parser.add_argument('--clusters', '-k', type=int, default=None, 
+    parser.add_argument('--clusters', '-k', type=int, default=None,
                         help=f'Number of K-Means clusters (default: {N_CLUSTERS} from config)')
-    parser.add_argument('--transformer-sentiment', action='store_true',
-                        help='Use transformer model for sentiment (deprecated, configured in config.yaml)')
     parser.add_argument('--cloudscraper', action='store_true',
                         help='Use cloudscraper library to bypass CloudFront blocking (for Colab/data centers)')
     
@@ -397,8 +357,10 @@ Examples:
     parser.add_argument('--max-cache-age', type=int, default=CACHE_MAX_AGE_DAYS,
                         help=f'Max cache age in days (default: {CACHE_MAX_AGE_DAYS})')
     
-    # Logging
+    # Logging / failure policy
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable debug logging')
+    parser.add_argument('--strict', action='store_true',
+                        help='Exit non-zero if any analyzer failed during the run')
     
     args = parser.parse_args()
     
@@ -417,10 +379,11 @@ Examples:
         sys.exit(0)
     
     main(
-        force_refetch=args.refetch, 
-        force_reembed=args.reembed, 
-        n_clusters_override=args.clusters, 
+        force_refetch=args.refetch,
+        force_reembed=args.reembed,
+        n_clusters_override=args.clusters,
         source=args.source,
-        use_transformer_sentiment=args.transformer_sentiment,
-        use_cloudscraper=args.cloudscraper
+        use_cloudscraper=args.cloudscraper,
+        max_cache_age_days=args.max_cache_age,
+        strict=args.strict,
     )

@@ -37,6 +37,10 @@ class IdentityAnalyzer(BaseAnalyzer):
     name = "identity"
     description = "Political identity and DNA analysis"
     version = "1.0"
+
+    # Entropy-based generalism and TF-IDF distinctiveness both need a corpus to
+    # be distinctive *against*; on a thin slice they mostly measure sampling.
+    min_speeches = 150
     
     default_features = {
         'thematic_fingerprint': True,
@@ -92,7 +96,8 @@ class IdentityAnalyzer(BaseAnalyzer):
             result['distinctive_keywords'] = compute_distinctive_keywords(
                 df=self.df,
                 party_col=self.party_col,
-                text_col=self.text_col
+                # POS filtering keeps nouns and adjectives, which needs real tagging
+                text_col=self.nlp_text_col,
             )
         
         logger.info("Identity analysis complete")

@@ -1,107 +1,136 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 /**
- * Loads and caches the per-chamber datasets.
+ * Loads the chunked dataset.
  *
- * The payload is large (camera.json is ~45 MB) and is intentionally left as-is
- * for this pass, so two things matter here:
+ * The backend used to emit one file per chamber — camera.json was 45 MB — and
+ * this provider had to stream the whole thing before the shell could render.
+ * It now emits a manifest plus separate resources, so:
  *
- *  1. Parsed payloads are cached per chamber for the session. The old provider
- *     re-fetched and re-parsed the whole file on every chamber toggle.
- *  2. Download progress is surfaced, so the shell can show a real skeleton with
- *     a byte count instead of an indefinite spinner.
+ *  1. First paint needs only `manifest.json` + that chamber's `core.json`
+ *     (deputies, clusters, stats): a couple of MB instead of forty-five.
+ *  2. Speeches and each analytics period are fetched the first time a view
+ *     actually asks for them, through `useSpeeches()` / `useAnalytics()`.
+ *  3. Every resource is cached by path for the session, so switching chamber or
+ *     period never refetches something already held.
  */
-
-const CHAMBERS = {
-  camera: { id: 'camera', file: 'camera.json', label: 'Camera', full: 'Camera dei Deputati' },
-  senate: { id: 'senate', file: 'senato.json', label: 'Senato', full: 'Senato della Repubblica' },
-};
-
-export const CHAMBER_LIST = Object.values(CHAMBERS);
 
 const DataContext = createContext(null);
 
+const DATA_ROOT = 'data';
+
 /** Resolve against Vite's base so the gh-pages sub-path keeps working. */
-const assetUrl = (file) => `${import.meta.env.BASE_URL}${file}`;
+const assetUrl = (path) => `${import.meta.env.BASE_URL}${DATA_ROOT}/${path}`;
+
+const CHAMBER_LABELS = {
+  camera: { id: 'camera', label: 'Camera', full: 'Camera dei Deputati' },
+  senato: { id: 'senato', label: 'Senato', full: 'Senato della Repubblica' },
+};
+
+/** The manifest keys chambers by file stem; routes still say 'senate'. */
+const CHAMBER_ALIASES = { senate: 'senato', senato: 'senato', camera: 'camera' };
+
+export const CHAMBER_LIST = Object.values(CHAMBER_LABELS);
 
 export function DataProvider({ chamber = 'camera', children }) {
-  const [state, setState] = useState({ status: 'idle', data: null, error: null });
+  const chamberKey = CHAMBER_ALIASES[chamber] ?? chamber;
+
+  const [manifest, setManifest] = useState(null);
+  const [state, setState] = useState({ status: 'idle', core: null, error: null });
   const [progress, setProgress] = useState({ loaded: 0, total: 0 });
-  const [available, setAvailable] = useState(() => Object.keys(CHAMBERS));
 
+  // path -> Promise<json>, so concurrent callers share one request.
   const cache = useRef(new Map());
-  const inflight = useRef(null);
 
-  // Probe which datasets are actually deployed.
+  const fetchResource = useCallback((path, { withProgress = false } = {}) => {
+    if (!path) return Promise.resolve(null);
+
+    if (!cache.current.has(path)) {
+      const request = fetch(assetUrl(path))
+        .then((res) => {
+          if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
+          return withProgress ? readWithProgress(res, setProgress) : res.json();
+        })
+        .catch((err) => {
+          // Do not cache a failure: a retry should be able to succeed.
+          cache.current.delete(path);
+          throw err;
+        });
+
+      cache.current.set(path, request);
+    }
+
+    return cache.current.get(path);
+  }, []);
+
+  // The manifest is small and shared by every chamber, so it loads once.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      const found = await Promise.all(
-        Object.values(CHAMBERS).map(async (c) => {
-          try {
-            const res = await fetch(assetUrl(c.file), { method: 'HEAD' });
-            return res.ok ? c.id : null;
-          } catch {
-            return null;
-          }
-        }),
-      );
-      if (!cancelled) setAvailable(found.filter(Boolean));
-    })();
+
+    fetchResource('manifest.json')
+      .then((json) => {
+        if (!cancelled) setManifest(json);
+      })
+      .catch((err) => {
+        console.error('[data] manifest failed', err);
+        if (!cancelled) setState({ status: 'error', core: null, error: err });
+      });
+
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [fetchResource]);
+
+  const chamberEntry = manifest?.chambers?.[chamberKey] ?? null;
 
   useEffect(() => {
-    const meta = CHAMBERS[chamber];
-    if (!meta) return undefined;
+    if (!manifest) return undefined;
 
-    if (cache.current.has(chamber)) {
-      setState({ status: 'ready', data: cache.current.get(chamber), error: null });
-      setProgress({ loaded: 0, total: 0 });
+    if (!chamberEntry) {
+      setState({
+        status: 'error',
+        core: null,
+        error: new Error(`Unknown chamber "${chamberKey}"`),
+      });
       return undefined;
     }
 
-    const controller = new AbortController();
-    inflight.current?.abort();
-    inflight.current = controller;
-
-    setState({ status: 'loading', data: null, error: null });
+    let cancelled = false;
+    setState({ status: 'loading', core: null, error: null });
     setProgress({ loaded: 0, total: 0 });
 
-    (async () => {
-      try {
-        const res = await fetch(assetUrl(meta.file), { signal: controller.signal });
-        if (!res.ok) throw new Error(`${meta.file}: HTTP ${res.status}`);
+    fetchResource(chamberEntry.resources.core.path, { withProgress: true })
+      .then((core) => {
+        if (!cancelled) setState({ status: 'ready', core, error: null });
+      })
+      .catch((err) => {
+        console.error('[data] core failed', err);
+        if (!cancelled) setState({ status: 'error', core: null, error: err });
+      });
 
-        const json = await readWithProgress(res, setProgress);
-        if (controller.signal.aborted) return;
-
-        cache.current.set(chamber, json);
-        setState({ status: 'ready', data: json, error: null });
-      } catch (err) {
-        if (err.name === 'AbortError') return;
-        console.error('[data] load failed', err);
-        setState({ status: 'error', data: null, error: err });
-      }
-    })();
-
-    return () => controller.abort();
-  }, [chamber]);
+    return () => {
+      cancelled = true;
+    };
+  }, [manifest, chamberEntry, chamberKey, fetchResource]);
 
   const value = useMemo(
     () => ({
-      chamber,
-      chamberMeta: CHAMBERS[chamber] ?? CHAMBERS.camera,
-      availableChambers: available,
+      chamber: chamberKey,
+      chamberMeta: CHAMBER_LABELS[chamberKey] ?? CHAMBER_LABELS.camera,
+      availableChambers: manifest ? Object.keys(manifest.chambers) : [],
+      manifest,
+      resources: chamberEntry?.resources ?? null,
+      periods: chamberEntry?.periods ?? { years: [], months: [] },
       status: state.status,
-      data: state.data,
+      // `data` is the chamber's core resource: deputies, clusters, stats.
+      // Speeches and analytics come from the hooks below.
+      data: state.core,
       error: state.error,
       progress,
       isLoading: state.status === 'loading' || state.status === 'idle',
+      fetchResource,
     }),
-    [chamber, available, state, progress],
+    [chamberKey, manifest, chamberEntry, state, progress, fetchResource],
   );
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
@@ -114,7 +143,7 @@ export function useData() {
 }
 
 /**
- * Stream the body so a 45 MB download reports progress. Falls back to res.json()
+ * Stream a body so a large resource reports progress. Falls back to res.json()
  * when the stream or Content-Length is unavailable.
  */
 async function readWithProgress(res, onProgress) {
@@ -133,7 +162,6 @@ async function readWithProgress(res, onProgress) {
     chunks.push(value);
     loaded += value.length;
 
-    // Throttle: repainting on every chunk of a 45 MB file is its own bottleneck.
     const now = performance.now();
     if (now - lastTick > 120) {
       lastTick = now;

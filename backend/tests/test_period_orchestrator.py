@@ -87,7 +87,7 @@ class TestGlobalOnlyMode:
         mock_instance.run_all.return_value = {'identity': {}, 'sentiment': {}}
         mock_orchestrator.return_value = mock_instance
         
-        result = compute_analytics_by_period(
+        result, report = compute_analytics_by_period(
             df=period_test_df,
             embeddings=period_test_embeddings,
             cluster_labels=period_test_cluster_labels,
@@ -144,7 +144,7 @@ class TestFullPeriodMode:
         mock_instance.run_all.return_value = {'test': 'data'}
         mock_orchestrator.return_value = mock_instance
         
-        result = compute_analytics_by_period(
+        result, report = compute_analytics_by_period(
             df=period_test_df,
             embeddings=period_test_embeddings,
             cluster_labels=period_test_cluster_labels,
@@ -166,7 +166,7 @@ class TestFullPeriodMode:
         mock_instance.run_all.return_value = {'test': 'data'}
         mock_orchestrator.return_value = mock_instance
         
-        result = compute_analytics_by_period(
+        result, report = compute_analytics_by_period(
             df=period_test_df,
             embeddings=period_test_embeddings,
             cluster_labels=period_test_cluster_labels,
@@ -190,7 +190,7 @@ class TestFullPeriodMode:
         mock_instance.run_all.return_value = {'test': 'data'}
         mock_orchestrator.return_value = mock_instance
         
-        result = compute_analytics_by_period(
+        result, report = compute_analytics_by_period(
             df=period_test_df,
             embeddings=period_test_embeddings,
             cluster_labels=period_test_cluster_labels,
@@ -220,7 +220,7 @@ class TestDataStructure:
         mock_instance.run_all.return_value = {}
         mock_orchestrator.return_value = mock_instance
         
-        result = compute_analytics_by_period(
+        result, report = compute_analytics_by_period(
             df=period_test_df,
             embeddings=period_test_embeddings,
             cluster_labels=period_test_cluster_labels,
@@ -228,6 +228,10 @@ class TestDataStructure:
         )
         
         assert set(result.keys()) == {'global', 'by_year', 'by_month'}
+        # The run report is returned separately, so it can never be serialised
+        # into the payload by accident.
+        assert report is not None
+        assert 'failed_analyzers' in report.as_dict()
     
     @patch('backend.analyzers.period_orchestrator.AnalyticsOrchestrator')
     def test_year_keys_are_strings(
@@ -239,7 +243,7 @@ class TestDataStructure:
         mock_instance.run_all.return_value = {}
         mock_orchestrator.return_value = mock_instance
         
-        result = compute_analytics_by_period(
+        result, report = compute_analytics_by_period(
             df=period_test_df,
             embeddings=period_test_embeddings,
             cluster_labels=period_test_cluster_labels,
@@ -277,7 +281,7 @@ class TestErrorHandling:
         mock_orchestrator.return_value = mock_instance
         
         # Should not raise, should continue with other periods
-        result = compute_analytics_by_period(
+        result, report = compute_analytics_by_period(
             df=period_test_df,
             embeddings=period_test_embeddings,
             cluster_labels=period_test_cluster_labels,

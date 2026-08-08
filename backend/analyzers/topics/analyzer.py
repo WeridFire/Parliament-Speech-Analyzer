@@ -19,6 +19,9 @@ class TopicsAnalyzer(BaseAnalyzer):
     name = "topics"
     description = "Cluster topic extraction and labeling"
     version = "1.0"
+
+    # Cluster keywords are corpus-level labels; they do not change per month.
+    period_safe = False
     
     default_features = {}  # No sub-features
     
@@ -35,7 +38,7 @@ class TopicsAnalyzer(BaseAnalyzer):
         
         topics = extract_cluster_topics(
             df=self.df,
-            text_col=self.text_col,
+            text_col=self.nlp_text_col,
             cluster_col=self.cluster_col,
             top_n=self.top_n_keywords
         )

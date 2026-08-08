@@ -20,6 +20,9 @@ class RhetoricAnalyzer(BaseAnalyzer):
     name = "rhetoric"
     description = "Speech style and rhetoric patterns"
     version = "1.0"
+
+    # Per-speech marker counts averaged per speaker; tolerates smaller samples.
+    min_speeches = 50
     
     default_features = {
         'populist': True,
