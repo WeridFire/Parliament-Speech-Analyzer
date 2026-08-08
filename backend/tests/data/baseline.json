@@ -1,0 +1,307 @@
+{
+  "chambers": {
+    "camera": {
+      "analytics": {
+        "analyzers": [
+          "alliances",
+          "factions",
+          "identity",
+          "relations",
+          "rhetoric",
+          "sentiment",
+          "speaker",
+          "temporal",
+          "topics"
+        ],
+        "failed": [],
+        "n_months": 15,
+        "n_years": 3,
+        "years": [
+          "2024",
+          "2025",
+          "2026"
+        ]
+      },
+      "bytes_on_disk": 44889531,
+      "clusters": {
+        "0": {
+          "count": 732,
+          "label": "Fisco e Finanza Pubblica"
+        },
+        "1": {
+          "count": 417,
+          "label": "Lavoro e Imprese"
+        },
+        "10": {
+          "count": 790,
+          "label": "Politica Estera e Difesa"
+        },
+        "11": {
+          "count": 222,
+          "label": "Infrastrutture e Trasporti"
+        },
+        "12": {
+          "count": 3780,
+          "label": "Premierato e Autonomia"
+        },
+        "13": {
+          "count": 2994,
+          "label": "Riforme Elettorali"
+        },
+        "2": {
+          "count": 285,
+          "label": "Sanità"
+        },
+        "3": {
+          "count": 224,
+          "label": "Welfare e Famiglia"
+        },
+        "4": {
+          "count": 125,
+          "label": "Ambiente e Energia"
+        },
+        "5": {
+          "count": 345,
+          "label": "Giustizia e Legalità"
+        },
+        "6": {
+          "count": 258,
+          "label": "Immigrazione"
+        },
+        "7": {
+          "count": 230,
+          "label": "Diritti Civili"
+        },
+        "8": {
+          "count": 232,
+          "label": "Scuola e Università"
+        },
+        "9": {
+          "count": 102,
+          "label": "Agricoltura"
+        }
+      },
+      "date_range": [
+        "2024-12-02",
+        "2026-02-13"
+      ],
+      "deputies_by_period": {
+        "n_months": 15,
+        "n_years": 3
+      },
+      "deputy_fields": [
+        "cluster",
+        "cluster_label",
+        "deputy",
+        "n_speeches",
+        "name",
+        "party",
+        "rebel_pct",
+        "role",
+        "source",
+        "topic_scores",
+        "x",
+        "y"
+      ],
+      "deputy_speech_counts": {
+        "max": 264,
+        "mean": 33.32,
+        "singletons": 11,
+        "total": 10462
+      },
+      "n_deputies": 314,
+      "n_speeches": 10736,
+      "parties": [
+        "Alleanza Verdi e Sinistra",
+        "Azione-Popolari europeisti riformatori-Renew Europe",
+        "Forza Italia",
+        "Fratelli d'Italia",
+        "Italia Viva-Il Centro-Renew Europe",
+        "Lega",
+        "Lega - Salvini Premier",
+        "MISTO-+Europa",
+        "MISTO-Minoranze Linguistiche",
+        "Misto",
+        "MoVimento 5 Stelle",
+        "NOI MODERATI (NOI CON L'ITALIA, CORAGGIO ITALIA, UDC E ITALIA AL CENTRO)-MAIE-CENTRO POPOLARE",
+        "Partito Democratico - Italia Democratica e Progressista"
+      ],
+      "rebels": {
+        "n_listed": 15,
+        "n_scored": 303
+      },
+      "speech_fields": [
+        "cluster",
+        "cluster_label",
+        "date",
+        "deputy",
+        "party",
+        "rebel_pct",
+        "rhetoric_style",
+        "snippet",
+        "source",
+        "text",
+        "topic_scores",
+        "url",
+        "x",
+        "y"
+      ],
+      "stats": {
+        "n_clusters": 14,
+        "source": "camera",
+        "total_deputies": 314,
+        "total_parties": 13,
+        "total_speeches": 10736
+      }
+    },
+    "senato": {
+      "analytics": {
+        "analyzers": [
+          "alliances",
+          "factions",
+          "identity",
+          "relations",
+          "rhetoric",
+          "sentiment",
+          "speaker",
+          "temporal",
+          "topics"
+        ],
+        "failed": [],
+        "n_months": 2,
+        "n_years": 1,
+        "years": [
+          "2026"
+        ]
+      },
+      "bytes_on_disk": 3693319,
+      "clusters": {
+        "0": {
+          "count": 17,
+          "label": "Fisco e Finanza Pubblica"
+        },
+        "1": {
+          "count": 14,
+          "label": "Lavoro e Imprese"
+        },
+        "10": {
+          "count": 47,
+          "label": "Politica Estera e Difesa"
+        },
+        "11": {
+          "count": 11,
+          "label": "Infrastrutture e Trasporti"
+        },
+        "12": {
+          "count": 169,
+          "label": "Premierato e Autonomia"
+        },
+        "13": {
+          "count": 133,
+          "label": "Riforme Elettorali"
+        },
+        "2": {
+          "count": 5,
+          "label": "Sanità"
+        },
+        "3": {
+          "count": 7,
+          "label": "Welfare e Famiglia"
+        },
+        "4": {
+          "count": 7,
+          "label": "Ambiente e Energia"
+        },
+        "5": {
+          "count": 16,
+          "label": "Giustizia e Legalità"
+        },
+        "6": {
+          "count": 16,
+          "label": "Immigrazione"
+        },
+        "7": {
+          "count": 8,
+          "label": "Diritti Civili"
+        },
+        "8": {
+          "count": 2,
+          "label": "Scuola e Università"
+        },
+        "9": {
+          "count": 9,
+          "label": "Agricoltura"
+        }
+      },
+      "date_range": [
+        "2026-01-07",
+        "2026-02-12"
+      ],
+      "deputies_by_period": {
+        "n_months": 2,
+        "n_years": 1
+      },
+      "deputy_fields": [
+        "cluster",
+        "cluster_label",
+        "deputy",
+        "n_speeches",
+        "name",
+        "party",
+        "rebel_pct",
+        "role",
+        "source",
+        "topic_scores",
+        "x",
+        "y"
+      ],
+      "deputy_speech_counts": {
+        "max": 59,
+        "mean": 5.0,
+        "singletons": 46,
+        "total": 735
+      },
+      "n_deputies": 147,
+      "n_speeches": 461,
+      "parties": [
+        "Aut (SVP-PATT, Cb)",
+        "Forza Italia",
+        "Fratelli d'Italia",
+        "Governo",
+        "Italia Viva",
+        "Lega",
+        "Lega - Salvini Premier",
+        "M5S",
+        "Misto",
+        "PD"
+      ],
+      "rebels": {
+        "n_listed": 15,
+        "n_scored": 60
+      },
+      "speech_fields": [
+        "cluster",
+        "cluster_label",
+        "date",
+        "deputy",
+        "party",
+        "rebel_pct",
+        "rhetoric_style",
+        "snippet",
+        "source",
+        "text",
+        "topic_scores",
+        "url",
+        "x",
+        "y"
+      ],
+      "stats": {
+        "n_clusters": 14,
+        "source": "senate",
+        "total_deputies": 147,
+        "total_parties": 10,
+        "total_speeches": 461
+      }
+    }
+  }
+}

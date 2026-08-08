@@ -16,17 +16,18 @@ logger = logging.getLogger(__name__)
 CACHE_DIR = Path(__file__).parent.parent / '.cache'
 
 
-def get_cache_metadata(source: str) -> Optional[dict]:
+def get_cache_metadata(name: str) -> Optional[dict]:
     """
-    Load cache metadata (timestamp, version) for a source.
-    
+    Load cache metadata (timestamp, version) for an artifact.
+
     Args:
-        source: Data source identifier (e.g., 'senate', 'camera', 'both')
-    
+        name: Artifact identifier - a source ('camera') or a full cache key
+              stem ('embeddings_camera_9f2c1a4b')
+
     Returns:
         Metadata dict with 'created_at' and 'version', or None if not found
     """
-    meta_file = CACHE_DIR / f'cache_meta_{source}.json'
+    meta_file = CACHE_DIR / f'cache_meta_{name}.json'
     if meta_file.exists():
         try:
             with open(meta_file, 'r', encoding='utf-8') as f:
@@ -36,38 +37,41 @@ def get_cache_metadata(source: str) -> Optional[dict]:
     return None
 
 
-def save_cache_metadata(source: str, version: str = "2.0"):
+def save_cache_metadata(name: str, version: str = "2.0", **extra):
     """
-    Save cache creation timestamp and version.
-    
+    Save cache creation timestamp, version and any artifact-specific fields.
+
     Args:
-        source: Data source identifier
+        name: Artifact identifier (source name or full cache key stem)
         version: Cache format version for future compatibility
+        **extra: Additional fields to record (kind, digest, rows, bytes, ...)
     """
-    CACHE_DIR.mkdir(exist_ok=True)
-    meta_file = CACHE_DIR / f'cache_meta_{source}.json'
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    meta_file = CACHE_DIR / f'cache_meta_{name}.json'
     metadata = {
         'created_at': datetime.now().isoformat(),
         'version': version,
-        'source': source
+        'source': extra.pop('source', name),
+        **extra,
     }
     with open(meta_file, 'w', encoding='utf-8') as f:
         json.dump(metadata, f, indent=2)
-    logger.debug("Saved cache metadata for %s", source)
+    logger.debug("Saved cache metadata for %s", name)
 
 
-def is_cache_valid(source: str, max_age_days: int = 7) -> bool:
+def is_cache_valid(name: str, max_age_days: int = 7) -> bool:
     """
-    Check if cache is still valid based on age.
-    
+    Check if a cache entry is still within its age budget.
+
     Args:
-        source: Data source identifier
-        max_age_days: Maximum age in days before cache is considered stale
-    
+        name: Artifact identifier (source name or full cache key stem)
+        max_age_days: Maximum age in days before the entry is considered stale
+
     Returns:
-        True if cache exists and is within max_age_days, False otherwise
+        True if the entry exists and is younger than max_age_days
     """
-    meta = get_cache_metadata(source)
+    source = name
+    meta = get_cache_metadata(name)
     if not meta or 'created_at' not in meta:
         return False
     
@@ -174,12 +178,20 @@ def show_cache_info():
     
     print("-" * 60)
     print(f"  Total: {total_size:.1f} KB in {len(files)} files")
-    
-    # Show validity status per source
-    print("\n📊 Cache validity:")
-    for source in ['senate', 'camera', 'both']:
-        meta = get_cache_metadata(source)
-        if meta:
-            age = get_cache_age_days(source)
-            status = "✅ Valid" if is_cache_valid(source) else "⚠️ Stale"
-            print(f"  {source:10} {status} ({age} days old)")
+
+    # Show recorded metadata per artifact (entries are keyed by cache stem)
+    entries = sorted(CACHE_DIR.glob('cache_meta_*.json'))
+    if not entries:
+        return
+
+    print("\n📊 Cache entries:")
+    for meta_file in entries:
+        name = meta_file.name[len('cache_meta_'):-len('.json')]
+        meta = get_cache_metadata(name)
+        if not meta:
+            continue
+        age = get_cache_age_days(name)
+        kind = meta.get('kind', meta.get('source', '?'))
+        rows = meta.get('rows')
+        detail = f", {rows} rows" if rows else ""
+        print(f"  {name:45} {kind:12} ({age} days old{detail})")

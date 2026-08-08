@@ -4,7 +4,6 @@ Tests for Orchestrator and Registry.
 Tests:
 - AnalyzerRegistry
 - AnalyticsOrchestrator
-- CacheManager
 """
 
 import pytest
@@ -77,11 +76,10 @@ class TestAnalyticsOrchestrator:
             cluster_labels=mock_data.cluster_labels,
             cluster_centroids=mock_data.cluster_centroids,
             source='test',
-            enable_cache=False
         )
-        
-        result = orchestrator.run('identity', use_cache=False)
-        
+
+        result = orchestrator.run('identity')
+
         assert isinstance(result, dict)
     
     def test_run_all_analyzers(self, mock_data):
@@ -94,13 +92,13 @@ class TestAnalyticsOrchestrator:
             cluster_labels=mock_data.cluster_labels,
             cluster_centroids=mock_data.cluster_centroids,
             source='test',
-            enable_cache=False
         )
-        
-        results = orchestrator.run_all(use_cache=False)
-        
+
+        results = orchestrator.run_all()
+
         assert isinstance(results, dict)
         assert len(results) > 0
+        assert not orchestrator.failures, f"analyzers failed: {orchestrator.failures}"
     
     def test_get_available_analyzers(self, mock_data):
         """Test getting available analyzers."""
@@ -109,64 +107,77 @@ class TestAnalyticsOrchestrator:
         orchestrator = AnalyticsOrchestrator(
             df=mock_data.df,
             source='test',
-            enable_cache=False
         )
-        
+
         available = orchestrator.get_available_analyzers()
-        
+
         assert len(available) >= 9
-    
+
     def test_invalid_analyzer_raises(self, mock_data):
         """Test that invalid analyzer name raises error."""
         from backend.analyzers import AnalyticsOrchestrator
-        
+
         orchestrator = AnalyticsOrchestrator(
             df=mock_data.df,
             source='test',
-            enable_cache=False
         )
-        
+
         with pytest.raises(ValueError):
             orchestrator.run('nonexistent')
 
 
-class TestCacheManager:
-    """Tests for CacheManager."""
-    
-    def test_cache_set_get(self, tmp_path):
-        """Test cache set and get."""
-        from backend.analyzers.cache import CacheManager
-        
-        cache = CacheManager(tmp_path, 'test')
-        
-        data = {'key': 'value', 'number': 42}
-        cache.set('test_key', data)
-        
-        result = cache.get('test_key')
-        
-        assert result == data
-    
-    def test_cache_miss(self, tmp_path):
-        """Test cache miss returns None."""
-        from backend.analyzers.cache import CacheManager
-        
-        cache = CacheManager(tmp_path, 'test')
-        
-        result = cache.get('nonexistent_key')
-        
-        assert result is None
-    
-    def test_cache_invalidation(self, tmp_path):
-        """Test cache invalidation."""
-        from backend.analyzers.cache import CacheManager
-        
-        cache = CacheManager(tmp_path, 'test')
-        
-        cache.set('identity_v1', {'data': 'test'})
-        cache.set('sentiment_v1', {'data': 'test2'})
-        
-        # Invalidate identity
-        cache.invalidate('identity')
-        
-        assert cache.get('identity_v1') is None
-        assert cache.get('sentiment_v1') is not None
+class TestRunReporting:
+    """
+    A partial run must be visible.
+
+    Analyzer failures are recorded rather than raised, so without an explicit
+    record the payload ships with a silent hole where a metric should be.
+    """
+
+    def test_missing_dependencies_are_reported_as_skipped(self, mock_data):
+        """Analyzers needing embeddings are skipped, not failed, when none exist."""
+        from backend.analyzers import AnalyticsOrchestrator
+
+        orchestrator = AnalyticsOrchestrator(df=mock_data.df, source='test')
+        results = orchestrator.run_all()
+
+        assert orchestrator.skipped, "expected embedding-dependent analyzers to be skipped"
+        for name, missing in orchestrator.skipped.items():
+            assert missing
+            assert name not in results
+
+    def test_failures_are_recorded(self, mock_data, monkeypatch):
+        """A raising analyzer lands in `failures` and in the payload as an error."""
+        from backend.analyzers import AnalyticsOrchestrator, AnalyzerRegistry
+
+        identity = AnalyzerRegistry.get('identity')
+        monkeypatch.setattr(
+            identity, 'compute',
+            lambda self: (_ for _ in ()).throw(RuntimeError('boom')),
+        )
+
+        orchestrator = AnalyticsOrchestrator(
+            df=mock_data.df,
+            embeddings=mock_data.embeddings,
+            cluster_labels=mock_data.cluster_labels,
+            cluster_centroids=mock_data.cluster_centroids,
+            source='test',
+        )
+        results = orchestrator.run_all()
+
+        assert orchestrator.failures.get('identity') == 'boom'
+        assert results['identity'] == {'error': 'boom'}
+
+    def test_clean_run_reports_nothing(self, mock_data):
+        from backend.analyzers import AnalyticsOrchestrator
+
+        orchestrator = AnalyticsOrchestrator(
+            df=mock_data.df,
+            embeddings=mock_data.embeddings,
+            cluster_labels=mock_data.cluster_labels,
+            cluster_centroids=mock_data.cluster_centroids,
+            source='test',
+        )
+        orchestrator.run_all()
+
+        assert orchestrator.failures == {}

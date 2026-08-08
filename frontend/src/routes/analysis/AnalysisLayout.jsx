@@ -3,9 +3,10 @@ import { useMemo } from 'react';
 import { Page } from '../../layout/AppShell';
 import { PeriodControls } from '../../layout/PeriodControls';
 import { useData } from '../../data/DataProvider';
+import { useAnalytics } from '../../data/resources';
 import { useAppParams } from '../../app/useAppParams';
 import { useTheme } from '../../lib/useTheme';
-import { analyticsFor, availablePeriods } from '../../data/selectors';
+import { availablePeriods } from '../../data/selectors';
 import { cn } from '../../lib/cn';
 
 const TABS = [
@@ -27,7 +28,11 @@ export default function AnalysisLayout() {
   const { chamber, setChamber, period, setPeriod, params } = useAppParams();
 
   const periods = useMemo(() => availablePeriods(data), [data]);
-  const analytics = useMemo(() => analyticsFor(data, period), [data, period]);
+
+  // Each period's analytics is its own resource, fetched when selected. The
+  // global -> year -> month fallback now lives in the hook, so it is resolved
+  // in exactly one place for every tab.
+  const { data: analytics, status: analyticsStatus, hasOwn } = useAnalytics(period);
 
   const search = params.toString();
   const withParams = (to) => (search ? `${to}?${search}` : to);
@@ -35,6 +40,8 @@ export default function AnalysisLayout() {
   const context = {
     data,
     analytics,
+    analyticsStatus,
+    hasPeriodAnalytics: hasOwn,
     clusters: data?.clusters ?? {},
     period,
     mode,

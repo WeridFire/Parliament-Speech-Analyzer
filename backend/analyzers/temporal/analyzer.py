@@ -30,6 +30,11 @@ class TemporalAnalyzer(BaseAnalyzer):
     name = "temporal"
     description = "Temporal evolution of political discourse"
     version = "1.0"
+
+    # Trends, drift and topic surfing all describe movement *between* periods.
+    # Recomputing them inside a single month asks how discourse evolved during a
+    # slice chosen to remove that evolution.
+    period_safe = False
     
     default_features = {
         'topic_trends': True,

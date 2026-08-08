@@ -1,5 +1,16 @@
 """
-Polarization - "Us vs Them" language analysis.
+Polarization - "Us vs Them" language.
+
+Counts oppositional markers (noi/loro pronouns, adversative terms, us-them
+formulas) and reports their density. The score says how *oppositional the
+phrasing* is, not how extreme the position: quoting an opponent in order to
+disagree scores the same as meaning it.
+
+Scores go out in the shared `{raw, pct, n}` shape - see backend/scoring - so
+`raw` carries a real unit (markers per thousand words) and `pct` carries
+standing within the corpus. The previous version multiplied the density by 500
+and clamped it to 100, which flattened everyone above a modest threshold into a
+single indistinguishable top score.
 """
 
 import logging
@@ -7,64 +18,53 @@ import logging
 import pandas as pd
 
 from backend.config import POLARIZATION_PRONOUNS, ADVERSATIVE_TERMS, US_THEM_PATTERNS
+from backend.scoring import Score, percentile_ranks, rate_per_thousand
+from backend.scoring.normalize import classify_by_percentile
+
 from .utils import tokenize_simple, count_keywords
 
 logger = logging.getLogger(__name__)
 
+# Relative weight of each marker family. A fixed formula, stated here rather
+# than buried in the arithmetic.
+PRONOUN_WEIGHT = 1
+ADVERSATIVE_WEIGHT = 2
+PATTERN_WEIGHT = 3
+
+MIN_SPEECHES = 3
+
 
 def compute_polarization_score(text: str) -> dict:
     """
-    Compute polarization score based on "Us vs Them" language.
-    
-    Analyzes:
-    - Pronoun usage (noi/loro/voi)
-    - Adversative terms (contro, nemici, etc.)
-    - Us-them patterns
-    
-    Args:
-        text: Input text
-    
+    Oppositional marker density for one speech.
+
     Returns:
         {
-            'score': 0-100 (higher = more polarizing),
-            'pronoun_count': int,
-            'adversative_count': int,
-            'pattern_count': int,
-            'classification': 'bassa' | 'media' | 'alta'
+            'rate': markers per thousand words (unbounded),
+            'pronoun_count', 'adversative_count', 'pattern_count': int,
+            'n_words': int
         }
     """
     text_lower = str(text).lower()
     tokens = tokenize_simple(text_lower)
-    n_words = len(tokens) if tokens else 1
-    
-    # Count pronouns
-    pronouns_lower = {p.lower() for p in POLARIZATION_PRONOUNS}
-    pronoun_count = count_keywords(tokens, pronouns_lower)
-    
-    # Count adversative terms
-    adversative_lower = {a.lower() for a in ADVERSATIVE_TERMS}
-    adversative_count = count_keywords(tokens, adversative_lower)
-    
-    # Count patterns
+    n_words = len(tokens)
+
+    pronoun_count = count_keywords(tokens, {p.lower() for p in POLARIZATION_PRONOUNS})
+    adversative_count = count_keywords(tokens, {a.lower() for a in ADVERSATIVE_TERMS})
     pattern_count = sum(1 for pattern in US_THEM_PATTERNS if pattern.lower() in text_lower)
-    
-    # Compute score
-    # Weight: pronouns * 1, adversative * 2, patterns * 3
-    raw_score = (pronoun_count * 1 + adversative_count * 2 + pattern_count * 3)
-    
-    # Normalize by text length and scale to 0-100
-    normalized_score = (raw_score / n_words) * 500  # Empirical scaling
-    score = min(100, max(0, normalized_score))
-    
-    # Classification
-    classification = _classify_polarization(score)
-    
+
+    weighted = (
+        pronoun_count * PRONOUN_WEIGHT
+        + adversative_count * ADVERSATIVE_WEIGHT
+        + pattern_count * PATTERN_WEIGHT
+    )
+
     return {
-        'score': round(score, 1),
+        'rate': rate_per_thousand(weighted, n_words),
         'pronoun_count': pronoun_count,
         'adversative_count': adversative_count,
         'pattern_count': pattern_count,
-        'classification': classification
+        'n_words': n_words,
     }
 
 
@@ -75,91 +75,78 @@ def compute_polarization_scores(
     party_col: str = 'group'
 ) -> dict:
     """
-    Compute polarization scores for all speeches and aggregate.
-    
-    Args:
-        df: DataFrame with speeches
-        text_col: Column with cleaned text
-        speaker_col: Column with speaker names
-        party_col: Column with party names
-    
+    Aggregate polarization by speaker and party.
+
     Returns:
         {
-            'by_speaker': {speaker: {avg_score, classification, ...}, ...},
-            'by_party': {party: {avg_score, classification, ...}, ...},
-            'top_polarizers': [{speaker, party, score}, ...],
-            'least_polarizers': [{speaker, party, score}, ...]
+            'by_speaker': {speaker: {raw, pct, n, classification, party}},
+            'by_party': {party: {raw, pct, n, classification}},
+            'top_polarizers': [{speaker, party, raw, pct}],
+            'least_polarizers': [...],
+            'unit': 'markers per 1000 words'
         }
     """
-    # Compute per-speech scores
-    scores = df[text_col].apply(compute_polarization_score)
     df = df.copy()
-    df['polarization'] = scores.apply(lambda x: x['score'])
-    df['polarization_class'] = scores.apply(lambda x: x['classification'])
-    
-    result = {
-        'by_speaker': {},
-        'by_party': {},
-        'top_polarizers': [],
-        'least_polarizers': []
-    }
-    
-    # Aggregate by speaker
-    speaker_scores = []
-    for speaker in df[speaker_col].unique():
-        speaker_df = df[df[speaker_col] == speaker]
-        
-        if len(speaker_df) < 3:  # Minimum speeches
+    df['_polarization_rate'] = df[text_col].apply(lambda t: compute_polarization_score(t)['rate'])
+
+    speaker_rates, speaker_counts, speaker_party = {}, {}, {}
+    for speaker, rows in df.groupby(speaker_col):
+        if len(rows) < MIN_SPEECHES:
             continue
-            
-        avg_score = speaker_df['polarization'].mean()
-        party = speaker_df[party_col].iloc[0]
-        
-        result['by_speaker'][speaker] = {
-            'avg_score': round(avg_score, 1),
-            'classification': _classify_polarization(avg_score),
-            'n_speeches': len(speaker_df),
-            'party': party
-        }
-        
-        speaker_scores.append({
-            'speaker': speaker,
-            'party': party,
-            'score': round(avg_score, 1)
-        })
-    
-    # Aggregate by party
-    for party in df[party_col].unique():
+        speaker_rates[speaker] = float(rows['_polarization_rate'].mean())
+        speaker_counts[speaker] = len(rows)
+        speaker_party[speaker] = rows[party_col].iloc[0]
+
+    party_rates, party_counts = {}, {}
+    for party, rows in df.groupby(party_col):
         if party == 'Unknown Group':
             continue
-            
-        party_df = df[df[party_col] == party]
-        avg_score = party_df['polarization'].mean()
-        
-        result['by_party'][party] = {
-            'avg_score': round(avg_score, 1),
-            'classification': _classify_polarization(avg_score),
-            'n_speeches': len(party_df)
+        party_rates[party] = float(rows['_polarization_rate'].mean())
+        party_counts[party] = len(rows)
+
+    speaker_pct = percentile_ranks(speaker_rates)
+    party_pct = percentile_ranks(party_rates)
+
+    by_speaker = {
+        speaker: {
+            **Score(raw=rate, pct=speaker_pct[speaker], n=speaker_counts[speaker]).as_dict(),
+            'classification': classify_by_percentile(speaker_pct[speaker]),
+            'party': speaker_party[speaker],
         }
-    
-    # Top and least polarizers
-    speaker_scores.sort(key=lambda x: -x['score'])
-    result['top_polarizers'] = speaker_scores[:10]
-    result['least_polarizers'] = speaker_scores[-10:][::-1]
-    
-    logger.info(
-        "Computed polarization scores for %d speakers and %d parties",
-        len(result['by_speaker']), len(result['by_party'])
+        for speaker, rate in speaker_rates.items()
+    }
+
+    by_party = {
+        party: {
+            **Score(raw=rate, pct=party_pct[party], n=party_counts[party]).as_dict(),
+            'classification': classify_by_percentile(party_pct[party]),
+        }
+        for party, rate in party_rates.items()
+    }
+
+    ranked = sorted(
+        (
+            {
+                'speaker': speaker,
+                'party': speaker_party[speaker],
+                'raw': round(rate, 2),
+                'pct': round(speaker_pct[speaker], 1),
+                'n': speaker_counts[speaker],
+            }
+            for speaker, rate in speaker_rates.items()
+        ),
+        key=lambda entry: -entry['raw'],
     )
-    
-    return result
 
+    logger.info(
+        "Computed polarization for %d speakers and %d parties",
+        len(by_speaker), len(by_party),
+    )
 
-def _classify_polarization(score: float) -> str:
-    """Classify polarization score into category."""
-    if score < 20:
-        return 'bassa'
-    elif score < 50:
-        return 'media'
-    else:
-        return 'alta'
+    return {
+        'by_speaker': by_speaker,
+        'by_party': by_party,
+        'top_polarizers': ranked[:10],
+        'least_polarizers': ranked[-10:][::-1],
+        'unit': 'markers per 1000 words',
+    }

@@ -132,15 +132,23 @@ class TestPolarization:
         assert 'top_polarizers' in result
     
     def test_polarization_scores_valid(self, mock_df):
-        """Test that polarization scores are in valid range."""
+        """
+        Scores carry a unit and a standing, not a clamped 0-100 number.
+
+        `raw` is markers per thousand words and is deliberately unbounded;
+        `pct` is the percentile within the corpus and is what rankings use.
+        """
         from backend.analyzers.sentiment import compute_polarization_scores
-        
+
         result = compute_polarization_scores(
             df=mock_df,
             text_col='cleaned_text',
             speaker_col='deputy',
             party_col='group'
         )
-        
+
         for party, data in result['by_party'].items():
-            assert 0 <= data['avg_score'] <= 100
+            assert data['raw'] >= 0
+            assert 0 <= data['pct'] <= 100
+            assert data['n'] > 0
+            assert data['classification'] in ('bassa', 'media', 'alta')

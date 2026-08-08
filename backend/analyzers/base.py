@@ -9,14 +9,11 @@ All analyzers in this package inherit from BaseAnalyzer which provides:
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, Any, TYPE_CHECKING
+from typing import Optional, Any
 import logging
 
 import numpy as np
 import pandas as pd
-
-if TYPE_CHECKING:
-    from .cache import CacheManager
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +35,44 @@ class BaseAnalyzer(ABC):
     name: str = "base"
     description: str = "Base analyzer"
     version: str = "1.0"
-    
+
     # Feature flags for sub-metrics (override in subclasses)
     # Format: {'feature_name': default_enabled}
     default_features: dict[str, bool] = {}
+
+    # --- Sample-size policy --------------------------------------------------
+    # Each analyzer declares the conditions under which its numbers mean
+    # something, instead of the orchestrator applying one blanket threshold.
+    # Previously every analyzer ran on every month with >= 5 speeches, which
+    # produced megabytes of entropy and TF-IDF scores computed over a handful of
+    # interventions.
+
+    # False when the metric is about change *between* periods, so slicing the
+    # corpus into one period makes it meaningless.
+    period_safe: bool = True
+
+    # Smallest subset on which this analyzer's output is worth publishing.
+    min_speeches: int = 30
+
+    @classmethod
+    def supports(cls, granularity: str, n_speeches: int) -> tuple[bool, str]:
+        """
+        Whether this analyzer should run over a subset of the given shape.
+
+        Args:
+            granularity: 'global', 'year' or 'month'
+            n_speeches: size of the subset
+
+        Returns:
+            (allowed, reason) - reason explains a refusal, for the run report.
+        """
+        if granularity != 'global':
+            if not cls.period_safe:
+                return False, 'measures change over time; only meaningful globally'
+            if n_speeches < cls.min_speeches:
+                return False, f'{n_speeches} speeches < {cls.min_speeches} required'
+
+        return True, ''
     
     def __init__(
         self,
@@ -49,7 +80,6 @@ class BaseAnalyzer(ABC):
         embeddings: Optional[np.ndarray] = None,
         cluster_labels: Optional[dict] = None,
         cluster_centroids: Optional[np.ndarray] = None,
-        cache_manager: Optional["CacheManager"] = None,
         config: Optional[dict] = None,
         # Common column names
         text_col: str = 'cleaned_text',
@@ -66,7 +96,6 @@ class BaseAnalyzer(ABC):
             embeddings: Speech embeddings array (N x D)
             cluster_labels: Dict mapping cluster_id -> label string
             cluster_centroids: Array of cluster centroid vectors
-            cache_manager: Optional cache manager for persistence
             config: Optional configuration dict (from YAML)
             text_col: Column name for cleaned text
             speaker_col: Column name for speaker names
@@ -78,7 +107,6 @@ class BaseAnalyzer(ABC):
         self.embeddings = embeddings
         self.cluster_labels = cluster_labels or {}
         self.cluster_centroids = cluster_centroids
-        self.cache = cache_manager
         self.config = config or {}
         
         # Column names
@@ -116,6 +144,19 @@ class BaseAnalyzer(ABC):
     def is_feature_enabled(self, feature: str) -> bool:
         """Check if a specific feature is enabled."""
         return self.features.get(feature, False)
+
+    @property
+    def nlp_text_col(self) -> str:
+        """
+        Column to feed to spaCy (POS tagging, named entities).
+
+        `cleaned_text` is lowercased and stripped of procedural phrases, which is
+        right for embeddings but wrong for linguistic analysis: Italian NER leans
+        heavily on capitalisation, and lowercasing costs most of that signal.
+        The pipeline keeps the text as delivered in `raw_text`; anything that
+        parses language rather than counting words should read that.
+        """
+        return 'raw_text' if 'raw_text' in self.df.columns else self.text_col
     
     @abstractmethod
     def compute(self) -> dict:
@@ -126,34 +167,6 @@ class BaseAnalyzer(ABC):
             Dict with analyzer results, structure depends on analyzer type.
         """
         pass
-    
-    def compute_cached(self, cache_key: str = None) -> dict:
-        """
-        Compute with caching support.
-        
-        Args:
-            cache_key: Optional custom cache key. If None, uses name_version.
-            
-        Returns:
-            Cached or freshly computed results.
-        """
-        key = cache_key or f"{self.name}_v{self.version}"
-        
-        # Check cache
-        if self.cache and self.cache.has(key):
-            logger.info("%s: loading from cache (key=%s)", self.name, key)
-            return self.cache.get(key)
-        
-        # Compute
-        logger.info("%s: computing...", self.name)
-        result = self.compute()
-        
-        # Store in cache
-        if self.cache:
-            self.cache.set(key, result)
-            logger.debug("%s: cached result (key=%s)", self.name, key)
-        
-        return result
     
     @classmethod
     def get_dependencies(cls) -> list[str]:

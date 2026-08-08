@@ -42,10 +42,14 @@ def compute_semantic_drift(
         }
     """
     df = add_time_columns(df, date_col)
-    
-    # Filter valid data
+
+    # Work in positional space: `positions` records where each surviving row sits
+    # in `embeddings`, so filtering the frame can never desynchronise the arrays.
+    df = df.reset_index(drop=True)
+    df['_position'] = np.arange(len(df))
+
     valid_df = df[df['_year'].notna()].copy()
-    
+
     if valid_df.empty:
         logger.warning("No valid dates for semantic drift analysis")
         return {}
@@ -74,11 +78,10 @@ def compute_semantic_drift(
             if period_mask.sum() < 5:  # Need minimum speeches
                 continue
             
-            period_indices = party_df[period_mask].index
-            original_indices = [df.index.get_loc(idx) for idx in period_indices if idx in df.index]
-            
-            if original_indices:
-                period_centroids[period] = np.mean(embeddings[original_indices], axis=0)
+            positions = party_df.loc[period_mask, '_position'].to_numpy()
+
+            if positions.size:
+                period_centroids[period] = np.mean(embeddings[positions], axis=0)
         
         if len(period_centroids) < 2:
             continue

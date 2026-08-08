@@ -3,9 +3,10 @@ import { cn } from '../lib/cn';
 /**
  * Loading placeholder.
  *
- * These datasets are large (camera.json is ~45 MB and is parsed in one go), so
- * the wait is real and a bare spinner understated it. A skeleton communicates
- * both that something is coming and roughly what shape it will be.
+ * The payload is fetched in pieces, so the wait moved rather than disappeared:
+ * the shell paints quickly, then the map waits on the speeches resource and a
+ * dashboard tab waits on its period's analytics. A skeleton communicates both
+ * that something is coming and roughly what shape it will be.
  */
 export function Skeleton({ className, ...rest }) {
   return (

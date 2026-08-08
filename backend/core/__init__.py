@@ -4,6 +4,8 @@ Core functionality package.
 Contains core components for caching, clustering logic, and data aggregation.
 """
 
+from .dataset import SpeechDataset
+
 from .cache import (
     load_cached_speeches,
     save_speeches_cache,
@@ -13,7 +15,8 @@ from .cache import (
 
 from .clustering import (
     assign_topics_by_semantics,
-    compute_rebel_scores
+    compute_divergence_scores,
+    compute_rebel_scores,
 )
 
 from .aggregation import (

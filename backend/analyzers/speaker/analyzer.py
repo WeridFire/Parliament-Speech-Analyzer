@@ -146,7 +146,8 @@ class SpeakerAnalyzer(BaseAnalyzer):
             entities = compute_entity_focus(
                 df=self.df,
                 speaker_col=self.speaker_col,
-                text_col=self.text_col
+                # NER needs the original capitalisation to find names at all
+                text_col=self.nlp_text_col,
             )
             
             if 'error' not in entities:

@@ -3,6 +3,7 @@ import { Search, X } from 'lucide-react';
 import { Page } from '../layout/AppShell';
 import { PeriodControls } from '../layout/PeriodControls';
 import { useData } from '../data/DataProvider';
+import { useSpeeches } from '../data/resources';
 import { useAppParams } from '../app/useAppParams';
 import { useTheme } from '../lib/useTheme';
 import {
@@ -17,7 +18,7 @@ import { topicList } from '../domain/topics';
 import { partyDot, partyShort, partyShape, resolveParty, sortParties } from '../domain/parties';
 import { ScatterMap } from '../viz/charts/ScatterMap';
 import { seriesColor, SERIES_CAP, OTHER_COLOR } from '../viz/palette';
-import { Card, CardBody, CardHeader, Chip, Legend, SegmentedControl, StatTile } from '../ui';
+import { Card, CardBody, CardHeader, Chip, Legend, SegmentedControl, Skeleton, StatTile } from '../ui';
 import { int } from '../lib/format';
 import { SpeechModal } from './SpeechModal';
 import { cn } from '../lib/cn';
@@ -33,13 +34,18 @@ export default function MapRoute() {
 
   const [openSpeech, setOpenSpeech] = useState(null);
 
+  // Speeches are a separate resource: the deputies view never downloads them.
+  const { data: speeches, status: speechStatus } = useSpeeches();
+
   const clusters = data?.clusters ?? {};
   const periods = useMemo(() => availablePeriods(data), [data]);
 
   const items = useMemo(
-    () => (view === 'deputati' ? deputiesFor(data, period) : speechesFor(data, period)),
-    [data, period, view],
+    () => (view === 'deputati' ? deputiesFor(data, period) : speechesFor(speeches, period)),
+    [data, speeches, period, view],
   );
+
+  const itemsLoading = view !== 'deputati' && speechStatus === 'loading';
 
   const points = useMemo(
     () =>
@@ -153,16 +159,20 @@ export default function MapRoute() {
             }
           />
           <CardBody className="p-2 sm:p-3">
-            <ScatterMap
-              points={points}
-              focusKeys={focus}
-              selectedIds={deputies}
-              shapeFor={shapeFor}
-              mode={mode}
-              height={560}
-              onPointClick={onPointClick}
-              axisLabels={{ x: 'Dimensione semantica 1', y: 'Dimensione semantica 2' }}
-            />
+            {itemsLoading ? (
+              <Skeleton className="h-140 w-full" />
+            ) : (
+              <ScatterMap
+                points={points}
+                focusKeys={focus}
+                selectedIds={deputies}
+                shapeFor={shapeFor}
+                mode={mode}
+                height={560}
+                onPointClick={onPointClick}
+                axisLabels={{ x: 'Dimensione semantica 1', y: 'Dimensione semantica 2' }}
+              />
+            )}
           </CardBody>
         </Card>
 

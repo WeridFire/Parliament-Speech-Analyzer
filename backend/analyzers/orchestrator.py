@@ -13,7 +13,6 @@ import pandas as pd
 
 from .base import BaseAnalyzer
 from .registry import AnalyzerRegistry
-from .cache import CacheManager
 from .config_loader import load_config
 
 logger = logging.getLogger(__name__)
@@ -49,8 +48,7 @@ class AnalyticsOrchestrator:
         cluster_centroids: Optional[np.ndarray] = None,
         source: str = 'default',
         config_path: Optional[Path] = None,
-        cache_dir: Optional[Path] = None,
-        enable_cache: bool = True,
+        granularity: str = 'global',
         # Column names
         text_col: str = 'cleaned_text',
         speaker_col: str = 'deputy',
@@ -68,8 +66,6 @@ class AnalyticsOrchestrator:
             cluster_centroids: Array of cluster centroid vectors
             source: Data source name (e.g., 'camera', 'senato')
             config_path: Path to config.yaml
-            cache_dir: Base directory for cache files
-            enable_cache: Whether to use caching
             text_col, speaker_col, party_col, cluster_col, date_col: Column names
         """
         self.df = df
@@ -77,6 +73,9 @@ class AnalyticsOrchestrator:
         self.cluster_labels = cluster_labels or {}
         self.cluster_centroids = cluster_centroids
         self.source = source
+        # 'global' | 'year' | 'month' - analyzers decide for themselves whether
+        # they are meaningful at this granularity and sample size.
+        self.granularity = granularity
         
         # Column names
         self.text_col = text_col
@@ -87,17 +86,12 @@ class AnalyticsOrchestrator:
         
         # Load config
         self.config = load_config(config_path)
-        
-        # Setup cache
-        if enable_cache and cache_dir:
-            self.cache = CacheManager(cache_dir, source)
-        else:
-            self.cache = None
-        
-        logger.info(
-            "Orchestrator initialized: %d speeches, source=%s, cache=%s",
-            len(df), source, 'enabled' if self.cache else 'disabled'
-        )
+
+        # Populated by run_all() so callers can report on a partial run
+        self.failures: dict[str, str] = {}
+        self.skipped: dict[str, list[str]] = {}
+
+        logger.info("Orchestrator initialized: %d speeches, source=%s", len(df), source)
     
     def _create_analyzer(self, analyzer_class: Type[BaseAnalyzer]) -> BaseAnalyzer:
         """Create an analyzer instance with shared data."""
@@ -106,7 +100,6 @@ class AnalyticsOrchestrator:
             embeddings=self.embeddings,
             cluster_labels=self.cluster_labels,
             cluster_centroids=self.cluster_centroids,
-            cache_manager=self.cache,
             config=self.config,
             text_col=self.text_col,
             speaker_col=self.speaker_col,
@@ -115,97 +108,85 @@ class AnalyticsOrchestrator:
             date_col=self.date_col,
         )
     
-    def run(self, analyzer_name: str, use_cache: bool = True) -> dict:
+    def run(self, analyzer_name: str) -> dict:
         """
         Run a specific analyzer by name.
-        
+
         Args:
             analyzer_name: Name of the analyzer (e.g., 'identity', 'sentiment')
-            use_cache: Whether to use cached results
-            
+
         Returns:
             Analyzer results dict
         """
         analyzer_class = AnalyzerRegistry.get(analyzer_name)
-        
+
         if analyzer_class is None:
             raise ValueError(f"Unknown analyzer: {analyzer_name}. Available: {AnalyzerRegistry.names()}")
-        
-        analyzer = self._create_analyzer(analyzer_class)
-        
-        if use_cache:
-            return analyzer.compute_cached()
-        else:
-            return analyzer.compute()
-    
-    def run_all(self, use_cache: bool = True) -> dict:
+
+        return self._create_analyzer(analyzer_class).compute()
+
+    def run_all(self) -> dict:
         """
         Run all enabled analyzers.
-        
-        Args:
-            use_cache: Whether to use cached results
-            
+
+        A failing analyzer is recorded rather than aborting the run - one broken
+        metric should not cost the whole export - but the failure is also kept in
+        `self.failures` so the caller can report it instead of shipping a payload
+        with a silent hole in it.
+
         Returns:
             Dict mapping analyzer_name -> results
         """
         results = {}
+        self.failures = {}
         enabled_analyzers = AnalyzerRegistry.get_enabled(self.config)
-        
+
         logger.info("Running %d enabled analyzers...", len(enabled_analyzers))
-        
+
         for analyzer_class in enabled_analyzers:
             name = analyzer_class.name
-            
+
+            missing = self._missing_dependencies(analyzer_class)
+            if missing:
+                logger.warning("Skipping %s: missing dependencies %s", name, missing)
+                self.skipped[name] = missing
+                continue
+
+            allowed, reason = analyzer_class.supports(self.granularity, len(self.df))
+            if not allowed:
+                logger.debug("Skipping %s at %s: %s", name, self.granularity, reason)
+                self.skipped[name] = [reason]
+                continue
+
+            logger.info("Running %s...", name)
+
             try:
-                # Check dependencies
-                deps = analyzer_class.get_dependencies()
-                missing = []
-                
-                if 'embeddings' in deps and self.embeddings is None:
-                    missing.append('embeddings')
-                if 'cluster_centroids' in deps and self.cluster_centroids is None:
-                    missing.append('cluster_centroids')
-                
-                if missing:
-                    logger.warning(
-                        "Skipping %s: missing dependencies %s",
-                        name, missing
-                    )
-                    continue
-                
-                logger.info("Running %s...", name)
-                
-                analyzer = self._create_analyzer(analyzer_class)
-                
-                if use_cache:
-                    results[name] = analyzer.compute_cached()
-                else:
-                    results[name] = analyzer.compute()
-                    
+                results[name] = self._create_analyzer(analyzer_class).compute()
             except Exception as e:
                 logger.error("Error running %s: %s", name, e, exc_info=True)
                 results[name] = {'error': str(e)}
-        
-        logger.info("Completed %d analyzers", len(results))
+                self.failures[name] = str(e)
+
+        logger.info("Completed %d analyzers (%d failed)", len(results), len(self.failures))
         return results
-    
+
+    def _missing_dependencies(self, analyzer_class: Type[BaseAnalyzer]) -> list[str]:
+        """Which declared dependencies this orchestrator cannot supply."""
+        deps = analyzer_class.get_dependencies()
+        available = {
+            'embeddings': self.embeddings is not None,
+            'cluster_centroids': self.cluster_centroids is not None,
+            'cluster_labels': bool(self.cluster_labels),
+        }
+        return [dep for dep in deps if dep in available and not available[dep]]
+
     def get_available_analyzers(self) -> list[str]:
         """Get list of all registered analyzer names."""
         return AnalyzerRegistry.names()
-    
+
     def get_enabled_analyzers(self) -> list[str]:
         """Get list of enabled analyzer names based on config."""
         return [a.name for a in AnalyzerRegistry.get_enabled(self.config)]
-    
-    def invalidate_cache(self, analyzer_name: str = None):
-        """
-        Invalidate cache for an analyzer or all analyzers.
-        
-        Args:
-            analyzer_name: If None, invalidates all. Otherwise just the specified analyzer.
-        """
-        if self.cache:
-            self.cache.invalidate(analyzer_name)
 
 
 def run_analytics(
@@ -215,13 +196,8 @@ def run_analytics(
     cluster_centroids: np.ndarray,
     source: str = 'default',
     config_path: Optional[Path] = None,
-    cache_dir: Optional[Path] = None,
 ) -> dict:
-    """
-    Convenience function to run all enabled analytics.
-    
-    This is a drop-in replacement for the old analytics.py approach.
-    """
+    """Convenience function to run all enabled analytics."""
     orchestrator = AnalyticsOrchestrator(
         df=df,
         embeddings=embeddings,
@@ -229,7 +205,6 @@ def run_analytics(
         cluster_centroids=cluster_centroids,
         source=source,
         config_path=config_path,
-        cache_dir=cache_dir,
     )
     
     return orchestrator.run_all()

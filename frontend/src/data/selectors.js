@@ -13,42 +13,21 @@ export const periodKey = (p) =>
   p?.year && p?.month ? `${p.year}-${p.month}` : p?.year ? String(p.year) : 'global';
 
 /** Years and months the backend says it has coverage for. */
-export function availablePeriods(data) {
+export function availablePeriods(core) {
   return (
-    data?.deputies_by_period?.available_periods ?? { years: [], months: [] }
+    core?.deputies_by_period?.available_periods ?? { years: [], months: [] }
   );
 }
 
 /**
- * Analytics for a period, walking global -> year -> month with fallback.
- * Same ladder the old AnalyticsDashboard used; lifted out so the map and the
- * dashboard cannot disagree about it.
+ * Speeches restricted to the selected period.
+ *
+ * Takes the speeches list rather than the whole payload: speeches are now a
+ * separately fetched resource (see `useSpeeches`), so a view that never opens
+ * the map never downloads them.
  */
-export function analyticsFor(data, period) {
-  const a = data?.analytics;
-  if (!a) return null;
-
-  if (period?.year && period?.month) {
-    return a.by_month?.[`${period.year}-${period.month}`] ?? a.global ?? a;
-  }
-  if (period?.year) {
-    return a.by_year?.[String(period.year)] ?? a.global ?? a;
-  }
-  return a.global ?? a;
-}
-
-/** True when the requested period genuinely has its own analytics block. */
-export function hasPeriodAnalytics(data, period) {
-  const a = data?.analytics;
-  if (!a) return false;
-  if (period?.year && period?.month) return Boolean(a.by_month?.[`${period.year}-${period.month}`]);
-  if (period?.year) return Boolean(a.by_year?.[String(period.year)]);
-  return Boolean(a.global);
-}
-
-/** Speeches restricted to the selected period. */
-export function speechesFor(data, period) {
-  const all = data?.speeches ?? [];
+export function speechesFor(speeches, period) {
+  const all = speeches ?? [];
   if (!period?.year) return all;
 
   const year = Number(period.year);
@@ -68,9 +47,9 @@ export function speechesFor(data, period) {
  * MIN_SPEECHES guards against single-intervention deputies dominating the map
  * with meaningless positions.
  */
-export function deputiesFor(data, period, minSpeeches = 5) {
-  const byPeriod = data?.deputies_by_period;
-  let list = data?.deputies ?? [];
+export function deputiesFor(core, period, minSpeeches = 5) {
+  const byPeriod = core?.deputies_by_period;
+  let list = core?.deputies ?? [];
 
   if (byPeriod) {
     if (period?.year && period?.month && byPeriod.by_month?.[`${period.year}-${period.month}`]) {
@@ -88,8 +67,9 @@ export function deputiesFor(data, period, minSpeeches = 5) {
 /**
  * Normalise speeches or deputies into the ScatterMap point shape.
  *
- * `text` is deliberately not used for display: the backend lowercases it and
- * truncates it to 500 chars. `snippet` holds the full original-case text.
+ * `text` now holds the original-case speech: the backend used to ship a
+ * lowercased, procedurally-stripped copy under that name alongside a full one
+ * called `snippet`, and this layer had to know which was which.
  */
 export function toMapPoints({ items, kind, colorBy, clusters }) {
   return items.map((item, i) => {

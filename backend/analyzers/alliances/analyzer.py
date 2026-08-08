@@ -18,6 +18,9 @@ class AlliancesAnalyzer(BaseAnalyzer):
     name = "alliances"
     description = "Cross-party themes and unusual alliances"
     version = "1.0"
+
+    # Cross-party mixing is only observable with several parties well represented.
+    min_speeches = 200
     
     default_features = {
         'transversal_clusters': True,

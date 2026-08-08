@@ -35,16 +35,18 @@ The Italian Parliament Speech Analyzer is designed to provide quantitative and q
 
 ```
 politics/
-├── backend/               # Python backend (data processing & analysis)
-│   ├── analyzers/         # Modular analysis engine
-│   ├── config/            # Configuration files
-│   ├── core/              # Shared logic (caching, aggregation)
-│   ├── scrapers/          # Web scrapers for Camera & Senato
-│   ├── utils/             # Utility functions
+├── backend/
+│   ├── analyzers/         # Modular analysis engine (registry + orchestrator)
+│   ├── config/            # Settings, lexicons, topic definitions
+│   ├── core/              # SpeechDataset, cache, clustering, artifact writer
+│   ├── ingestion/         # Open-data discovery + crawlers + roster matching
+│   ├── tools/             # Baseline capture, schema dump, payload migration
+│   ├── utils/             # Text, dates, retry, HTTP
 │   ├── export_data.py     # Main pipeline entry point
-│   └── pipeline.py        # NLP pipeline components
-├── frontend/              # React web application (in development)
-├── output/                # Generated analysis data
+│   └── pipeline.py        # Embeddings, reduction, clustering
+├── frontend/              # React web application
+│   └── public/data/       # Generated payload (manifest + chunks)
+├── docs/JSON_SCHEMA.md    # Payload contract (generated)
 └── colab_notebook.ipynb   # Google Colab execution notebook
 ```
 
@@ -54,19 +56,36 @@ politics/
 
 ### Data Collection
 
-The backend includes robust web scrapers for both houses of the Italian Parliament:
+Sittings and member registers come from the **official open data** (SPARQL);
+only the stenographic text itself is fetched from the chambers' websites.
 
-| Source | Description |
-|--------|-------------|
-| **Camera dei Deputati** | Scrapes stenographic reports from camera.it |
-| **Senato della Repubblica** | Scrapes stenographic reports from senato.it |
+| Source | Discovery | Text |
+|--------|-----------|------|
+| **Camera dei Deputati** | `dati.camera.it` — `ocd:seduta` | camera.it stenographic reports |
+| **Senato della Repubblica** | `dati.senato.it` — `osr:SedutaAssemblea` | senato.it stenographic reports |
 
 **Key Capabilities:**
-- Configurable time range (default: 13 months back)
-- Automatic speaker and party identification
-- Role detection (minister, president, deputy, senator)
-- CloudScraper integration for bypassing CloudFront protection
-- Robust retry logic with exponential backoff
+- Configurable time range (default: 15 months back)
+- Complete sitting index from open data — no listing pages to paginate or miss
+- Member registers from open data, matched by an indexed name resolver that
+  records how each attribution was reached
+- Per-sitting caching, so an interrupted run resumes almost free
+- Anti-bot challenges are detected and reported, never mistaken for "no data"
+
+**Check coverage before a full run:**
+
+```bash
+python -m backend.ingestion.verify --source both --months 15
+```
+
+It prints, per chamber, how many sittings officially exist against how many were
+fetched, parsed, blocked or failed, and exits non-zero when a chamber is blocked.
+
+> [!NOTE]
+> `senato.it` currently serves a CloudFront JavaScript challenge to automated
+> clients. Install Playwright (`pip install playwright && playwright install
+> chromium`) to enable the browser transport, or run from a network that is not
+> challenged.
 
 ---
 
@@ -87,11 +106,18 @@ python backend/export_data.py [OPTIONS]
 
 --refetch                 # Force re-download of all speeches
 --reembed                 # Force regeneration of embeddings
---transformer-sentiment   # Use transformer-based sentiment analysis
---cloudscraper            # Enable CloudScraper for anti-bot protection
+--cloudscraper            # Route requests through cloudscraper
 --source [camera|senate|both]  # Select data source
---clusters N              # Override number of topic clusters
+--clusters N              # Number of K-Means clusters (ignored when TOPIC_CLUSTERS is set)
+--max-cache-age N         # Ignore cached speeches older than N days
+--strict                  # Exit non-zero if any analyzer failed
 ```
+
+Embeddings are cached against a fingerprint of the exact texts they encode, so a
+corpus that changed without changing size can never reuse stale vectors.
+
+**Output** goes to `frontend/public/data/` as a manifest plus per-resource
+chunks — see [docs/JSON_SCHEMA.md](docs/JSON_SCHEMA.md).
 
 ---
 
@@ -214,14 +240,20 @@ Configuration is managed through `backend/config/settings.py`:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `MONTHS_BACK` | 13 | Months of historical data to fetch |
+| `MONTHS_BACK` | 15 | Months of historical data to fetch |
 | `DATA_SOURCE` | `'both'` | Data source: `'camera'`, `'senate'`, or `'both'` |
 | `LEGISLATURE` | 19 | Legislature number (XIX = 2022-present) |
 | `MIN_WORDS` | 30 | Minimum word count for speech inclusion |
-| `MIN_SPEECHES_DISPLAY` | 1 | Minimum speeches for frontend display |
-| `N_CLUSTERS` | 12 | Number of semantic clusters |
+| `MIN_SPEECHES_DISPLAY` | 5 | Minimum speeches for a member to be shown |
+| `N_CLUSTERS` | 12 | K-Means clusters (used only when `TOPIC_CLUSTERS` is `None`) |
+| `TOPIC_MIN_SIMILARITY` | 0.20 | Below this, a speech is left unclassified rather than forced into a topic |
 | `EMBEDDING_MODEL` | `paraphrase-multilingual-MiniLM-L12-v2` | Sentence embedding model |
 | `REDUCTION_METHOD` | `'pca'` | Dimensionality reduction: `'pca'` or `'tsne'` |
+| `CACHE_MAX_AGE_DAYS` | 31 | Cached speeches older than this are re-fetched |
+
+Analyzer features are toggled in `backend/analyzers/config.yaml`. Each analyzer
+also declares the sample sizes at which its output is meaningful, so period
+breakdowns skip metrics that a thin slice cannot support.
 
 ---
 

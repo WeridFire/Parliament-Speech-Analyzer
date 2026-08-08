@@ -20,14 +20,23 @@ export default function Method() {
       <div className="mt-10 flex flex-col gap-10">
         <Section title="Fonte dei dati">
           <p>
-            I resoconti stenografici delle sedute d&apos;Assemblea vengono raccolti da{' '}
-            <em>camera.it</em> e <em>senato.it</em> per la XIX legislatura. Ogni intervento è
-            attribuito a chi lo pronuncia e al suo gruppo parlamentare; i nomi sono verificati
-            contro l&apos;elenco ufficiale dei parlamentari in carica.
+            L&apos;elenco delle sedute d&apos;Assemblea e l&apos;anagrafe dei parlamentari
+            provengono dai dati aperti ufficiali (<em>dati.camera.it</em> e{' '}
+            <em>dati.senato.it</em>) per la XIX legislatura. Il testo degli interventi viene poi
+            letto dai resoconti stenografici pubblicati su <em>camera.it</em> e <em>senato.it</em>.
           </p>
           <p>
-            Sono esclusi gli interventi della Presidenza, quelli puramente procedurali e quelli
-            sotto le 30 parole.
+            Partire dall&apos;elenco ufficiale significa sapere quante sedute <em>dovrebbero</em>{' '}
+            esserci: ogni elaborazione confronta le sedute note con quelle effettivamente raccolte,
+            così una raccolta incompleta è un numero visibile e non un archivio silenziosamente più
+            piccolo.
+          </p>
+          <p>
+            Ogni intervento è attribuito a chi lo pronuncia confrontando il nome con l&apos;anagrafe
+            ufficiale. Quando più parlamentari condividono il cognome e il gruppo non basta a
+            distinguerli, l&apos;attribuzione viene marcata come incerta anziché risolta in
+            silenzio. Sono esclusi gli interventi della Presidenza, quelli puramente procedurali e
+            quelli sotto le 30 parole.
           </p>
         </Section>
 
@@ -39,19 +48,27 @@ export default function Method() {
             parole chiave, e ogni intervento è assegnato all&apos;area con la similarità più alta.
           </p>
           <p>
-            La distribuzione risultante è fortemente sbilanciata. Nei dati della Camera,
-            «Premierato e Autonomia» e «Riforme Elettorali» insieme raccolgono circa il 63% degli
-            interventi, mentre «Agricoltura» ne conta un centinaio: l&apos;assegnazione semantica
-            tende ad attrarre il linguaggio istituzionale e procedurale verso poche aree. I
-            confronti fra temi vanno letti con questa avvertenza.
+            L&apos;assegnazione ha una soglia minima. Un intervento che non somiglia abbastanza a
+            nessuna delle aree resta <strong className="text-ink">non classificato</strong> invece
+            di essere attribuito all&apos;area meno lontana: senza questa soglia ogni intervento
+            riceve comunque un tema, comprese le comunicazioni di servizio che non parlano di
+            nulla. Ogni intervento porta con sé anche un margine di confidenza, cioè la distanza fra
+            la prima e la seconda area: un margine basso indica un&apos;assegnazione fragile.
+          </p>
+          <p>
+            La distribuzione risultante resta sbilanciata: l&apos;assegnazione semantica tende ad
+            attrarre il linguaggio istituzionale e procedurale verso poche aree. I confronti fra
+            temi vanno letti con questa avvertenza.
           </p>
         </Section>
 
         <Section title="Le metriche principali">
           <Definition term="Indipendenza tematica">
             Quota di interventi di un parlamentare che ricadono fuori dall&apos;area tematica
-            prevalente del suo gruppo. Misura la distanza dall&apos;agenda del gruppo, non il
-            dissenso politico.
+            prevalente del suo gruppo, calcolata su almeno cinque interventi. Misura la distanza
+            dall&apos;agenda del gruppo, non il dissenso politico: chi siede in una commissione
+            diversa dalla maggioranza dei colleghi di partito ottiene un valore alto senza aver
+            mai espresso disaccordo.
           </Definition>
           <Definition term="Coesione interna">
             Quanto sono ravvicinati fra loro gli interventi di un gruppo nello spazio semantico.
@@ -74,8 +91,17 @@ export default function Method() {
             difficile per un lettore con licenza media.
           </Definition>
           <Definition term="Polarizzazione">
-            Frequenza di contrapposizioni «noi/loro», avversative e formule oppositive per mille
-            parole. Riguarda la forma del linguaggio, non il contenuto delle posizioni.
+            Frequenza di contrapposizioni «noi/loro», avversative e formule oppositive ogni mille
+            parole. Riguarda la forma del linguaggio, non il contenuto delle posizioni: citare un
+            avversario per contestarlo conta quanto sostenerlo.
+          </Definition>
+          <Definition term="Valori grezzi e percentili">
+            Le metriche costruite su lessici di marcatori sono pubblicate in due forme. Il{' '}
+            <em>valore grezzo</em> ha un&apos;unità dichiarata — marcatori ogni mille parole — e non
+            ha un tetto. Il <em>percentile</em> indica la posizione rispetto agli altri
+            parlamentari dello stesso insieme di dati, ed è ciò che determina la lunghezza delle
+            barre e l&apos;ordine delle classifiche. Le etichette «bassa», «media» e «alta» si
+            riferiscono al percentile, non a soglie assolute.
           </Definition>
         </Section>
 
@@ -88,8 +114,15 @@ export default function Method() {
             </li>
             <li>
               <strong className="text-ink">Molte metriche hanno soglie minime.</strong> A seconda
-              dell&apos;indicatore servono almeno due, tre o cinque interventi: un pannello vuoto
-              di norma significa «sotto soglia», non «errore».
+              dell&apos;indicatore servono almeno tre o cinque interventi per parlamentare: un
+              pannello vuoto di norma significa «sotto soglia», non «errore».
+            </li>
+            <li>
+              <strong className="text-ink">Non tutte le metriche esistono per ogni periodo.</strong>{' '}
+              Le misure che descrivono un cambiamento nel tempo, o che richiedono un campione ampio
+              — entropia tematica, termini distintivi, affinità fra gruppi — non vengono ricalcolate
+              su una singola mensilità: su poche decine di interventi misurerebbero il campione, non
+              il discorso. In quei casi la pagina mostra il dato complessivo.
             </li>
             <li>
               <strong className="text-ink">Il sentiment è lessicale.</strong> Deriva dal conteggio
