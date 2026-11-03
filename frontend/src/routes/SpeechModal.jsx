@@ -60,7 +60,8 @@ export function SpeechModal({ speech, clusters, onClose }) {
 
       <p className="mt-5 text-label text-muted">
         Testo tratto dal resoconto stenografico. Le annotazioni d&apos;aula (applausi,
-        interruzioni) sono state rimosse in fase di elaborazione.
+        interruzioni) sono tolte dal testo e analizzate a parte nella scheda «Applausi e
+        proteste».
       </p>
     </Modal>
   );

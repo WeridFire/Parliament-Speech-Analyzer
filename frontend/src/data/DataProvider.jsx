@@ -21,7 +21,7 @@ const DATA_ROOT = 'data';
 /** Resolve against Vite's base so the gh-pages sub-path keeps working. */
 const assetUrl = (path) => `${import.meta.env.BASE_URL}${DATA_ROOT}/${path}`;
 
-/** The manifest keys chambers by file stem; routes still say 'senate'. */
+/** The manifest keys chambers by file stem; older shared links say 'senate'. */
 const CHAMBER_ALIASES = { senate: 'senato', senato: 'senato', camera: 'camera' };
 
 export function DataProvider({ chamber = 'camera', children }) {

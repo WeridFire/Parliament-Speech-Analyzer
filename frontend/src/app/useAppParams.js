@@ -11,7 +11,7 @@ import { useSearchParams } from 'react-router';
  * back/forward for free.
  *
  * Italian param names keep shared links readable:
- *   fonte  chamber        camera | senate
+ *   fonte  chamber        camera | senato  ('senate' accepted from older links)
  *   anno   year           2024…
  *   mese   month          01…12
  *   vista  map view       interventi | deputati
@@ -64,7 +64,10 @@ export function useAppParams() {
     [setParams],
   );
 
-  const chamber = get('fonte') === 'senate' ? 'senate' : 'camera';
+  // The chamber switch writes the manifest's ids ('camera' | 'senato'). This
+  // used to accept only 'senate', so pressing "Senato" wrote a value that read
+  // back as the Camera and the switch did nothing on any page.
+  const chamber = ['senato', 'senate'].includes(get('fonte')) ? 'senato' : 'camera';
 
   const period = useMemo(() => {
     const year = params.get('anno');
@@ -89,7 +92,7 @@ export function useAppParams() {
 
   const setChamber = useCallback(
     (next) => {
-      // Period buckets differ per chamber (Senato covers 2 months, Camera 15),
+      // Period buckets differ per chamber (the two cover different months),
       // so a period from one chamber is meaningless in the other.
       update({ fonte: next, anno: null, mese: null, focus: null, dep: null });
     },

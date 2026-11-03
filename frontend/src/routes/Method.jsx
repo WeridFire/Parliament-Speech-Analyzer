@@ -2,157 +2,199 @@ import { Page } from '../layout/AppShell';
 import { PageHeader } from '../ui';
 
 /**
- * Methodological note.
- *
- * The old app scattered its caveats across tooltips and a modal. Collecting
- * them on one page matters here: several metrics are easy to over-read, and
- * the two chambers are not directly comparable.
+ * Methodological note, written for the site's readers: how the numbers are
+ * produced and how to read them. Several metrics are easy to over-read, and
+ * the two chambers are not directly comparable, so the caveats live here in
+ * one place rather than scattered across tooltips.
  */
 export default function Method() {
   return (
     <Page className="max-w-[820px]">
       <PageHeader
         eyebrow="Nota metodologica"
-        title="Come sono calcolate le metriche"
-        description="Tutte le misure derivano dal testo degli interventi in Assemblea. Nessuna deriva dai voti o dalle presenze."
+        title="Come nascono i numeri"
+        description="Dalla raccolta dei resoconti al calcolo di ogni misura: cosa viene analizzato, come, e come leggere i risultati. Tutte le misure derivano dal testo degli interventi in Aula, nessuna dai voti o dalle presenze."
       />
 
       <div className="mt-10 flex flex-col gap-10">
-        <Section title="Fonte dei dati">
+        <Section title="Da dove vengono i dati">
           <p>
-            L&apos;elenco delle sedute d&apos;Assemblea e l&apos;anagrafe dei parlamentari
-            provengono dai dati aperti ufficiali (<em>dati.camera.it</em> e{' '}
-            <em>dati.senato.it</em>) per la XIX legislatura. Il testo degli interventi viene poi
-            letto dai resoconti stenografici pubblicati su <em>camera.it</em> e <em>senato.it</em>.
+            L&apos;elenco delle sedute dell&apos;Assemblea e l&apos;anagrafe dei parlamentari della
+            XIX legislatura provengono dai dati aperti ufficiali, <em>dati.camera.it</em> e{' '}
+            <em>dati.senato.it</em>. Il testo degli interventi è letto dai resoconti stenografici
+            pubblicati su <em>camera.it</em> e <em>senato.it</em>. Il periodo coperto da ciascuna
+            Camera è indicato in cima alle pagine di analisi.
           </p>
           <p>
-            Partire dall&apos;elenco ufficiale significa sapere quante sedute <em>dovrebbero</em>{' '}
-            esserci: ogni elaborazione confronta le sedute note con quelle effettivamente raccolte,
-            così una raccolta incompleta è un numero visibile e non un archivio silenziosamente più
-            piccolo.
-          </p>
-          <p>
-            Ogni intervento è attribuito a chi lo pronuncia confrontando il nome con l&apos;anagrafe
-            ufficiale. Quando più parlamentari condividono il cognome e il gruppo non basta a
-            distinguerli, l&apos;attribuzione viene marcata come incerta anziché risolta in
-            silenzio. Sono esclusi gli interventi della Presidenza, quelli puramente procedurali e
-            quelli sotto le 30 parole.
+            Partire dall&apos;elenco ufficiale permette di sapere quante sedute dovrebbero esserci e
+            di controllare che siano state raccolte tutte.
           </p>
         </Section>
 
-        <Section title="Collocazione tematica">
+        <Section title="Dai resoconti agli interventi">
           <p>
-            Ogni intervento è rappresentato come vettore da un modello multilingue di similarità
-            semantica, poi proiettato su due dimensioni per la mappa. Le quattordici aree tematiche
-            non sono cluster scoperti automaticamente: sono definite a priori tramite liste di
-            parole chiave, e ogni intervento è assegnato all&apos;area più simile.
+            Un <strong className="text-ink">intervento</strong> è un blocco di testo pronunciato da
+            un parlamentare o da un membro del Governo senza che altri prendano la parola. Ogni
+            intervento è attribuito a chi lo pronuncia confrontando il nome riportato nel resoconto
+            con l&apos;anagrafe ufficiale; quando più parlamentari hanno lo stesso cognome e il
+            gruppo non basta a distinguerli, l&apos;attribuzione è segnata come incerta.
           </p>
           <p>
-            Il confronto avviene dopo aver sottratto la componente comune a tutti gli interventi.
-            Senza questa correzione le descrizioni dal suono più «istituzionale» attiravano tutto:
-            due sole aree, Premierato e Riforme elettorali, raccoglievano il 62% degli interventi
-            della Camera. Su un campione di interventi le cui parole chiave indicano chiaramente un
-            tema, l&apos;accordo con l&apos;assegnazione è passato dal 51% al 72%.
+            Sono esclusi gli interventi di chi presiede la seduta e quelli sotto le 30 parole, che
+            sono quasi sempre battute procedurali. Dal testo usato per le analisi vengono tolte le
+            formule di rito («Grazie, Presidente», «Onorevoli colleghi»); il testo mostrato nella
+            mappa resta quello originale.
           </p>
           <p>
-            L&apos;assegnazione ha una soglia minima. Un intervento che non somiglia abbastanza a
-            nessuna delle aree — tipicamente richiami al regolamento e scambi di cortesia — resta{' '}
-            <strong className="text-ink">non classificato</strong> invece di essere attribuito
-            all&apos;area meno lontana. Ogni intervento porta con sé anche un margine di confidenza,
-            la distanza fra la prima e la seconda area: un margine basso indica
-            un&apos;assegnazione fragile.
+            I gruppi parlamentari compaiono con nomi diversi nelle due Camere e nelle note dei
+            resoconti («PD-IDP», «Partito Democratico - Italia Democratica e Progressista»): sono
+            ricondotti a un unico nome. Al Senato, se un intervento non riporta il gruppo, si usa
+            quello abituale del senatore.
+          </p>
+          <p>
+            Per i confronti fra schieramenti, la <strong className="text-ink">maggioranza</strong>{' '}
+            comprende Fratelli d&apos;Italia, Lega, Forza Italia, Noi Moderati e i membri del
+            Governo; l&apos;<strong className="text-ink">opposizione</strong> comprende Partito
+            Democratico, MoVimento 5 Stelle, Alleanza Verdi e Sinistra, Azione, Italia Viva e
+            +Europa. Il Gruppo misto e le componenti delle minoranze linguistiche e delle autonomie
+            restano a parte.
           </p>
         </Section>
 
-        <Section title="Le metriche principali">
-          <Definition term="Profilo tematico e sovra-rappresentazione">
-            Quota degli interventi di un gruppo dedicata a ciascuna area, confrontata con la media
-            dell&apos;Aula. Il rapporto fra le due dice su cosa il gruppo insiste più degli altri:
-            2 significa il doppio della media, 0,5 la metà.
+        <Section title="Come si assegna un tema">
+          <p>
+            Un modello linguistico multilingue trasforma ogni intervento in un vettore numerico:
+            interventi che parlano delle stesse cose ottengono vettori vicini. La mappa semantica
+            mostra questi vettori ridotti a due dimensioni, per cui due punti vicini sulla mappa
+            sono due interventi simili nel contenuto.
+          </p>
+          <p>
+            Le quattordici aree tematiche sono definite in anticipo, ciascuna da un nome e da un
+            elenco di parole chiave. Anche queste descrizioni sono trasformate in vettori, e ogni
+            intervento è assegnato all&apos;area la cui descrizione gli somiglia di più. Prima del
+            confronto si sottrae ciò che tutti gli interventi hanno in comune — il registro
+            generico del linguaggio parlamentare — così che a contare sia l&apos;argomento e non
+            il tono istituzionale.
+          </p>
+          <p>
+            Un intervento che non somiglia abbastanza a nessuna area resta{' '}
+            <strong className="text-ink">non classificato</strong>: accade a circa un intervento su
+            dieci, soprattutto richiami al regolamento e scambi di cortesia. Per ogni intervento si
+            conserva anche la distanza fra l&apos;area scelta e la seconda più vicina: quando è
+            piccola, il dettaglio dell&apos;intervento segnala l&apos;assegnazione come{' '}
+            <em>incerta</em>.
+          </p>
+        </Section>
+
+        <Section title="Cosa misura ogni analisi">
+          <Definition term="Identità · profilo tematico">
+            La quota degli interventi di un gruppo dedicata a ciascuna area, confrontata con la
+            media dell&apos;Aula. Il rapporto fra le due dice su cosa il gruppo insiste più degli
+            altri: un rapporto di 2 significa il doppio della media, 0,5 la metà. Nella mappa di
+            calore il rosso indica i temi su cui il gruppo insiste di più, il blu quelli che
+            trascura.
           </Definition>
-          <Definition term="Vocabolario distintivo">
-            Parole che un gruppo (o uno schieramento, o un tema) usa più del resto dell&apos;Aula,
-            misurate con il log-odds ratio con prior informativo: una parola conta solo se la
-            differenza è grande rispetto a quanto potrebbe essere dovuta al caso, e se compare in
-            almeno cinque interventi diversi. Sono esclusi i nomi dei gruppi e il lessico
-            procedurale.
+          <Definition term="Identità · vocabolario distintivo">
+            Le parole che un gruppo usa più del resto dell&apos;Aula. Per ogni sostantivo, aggettivo
+            e nome proprio si confronta la frequenza nel gruppo con quella negli altri gruppi,
+            tenendo conto di quanto la differenza potrebbe essere dovuta al caso (tecnicamente, un
+            log-odds ratio con prior informativo). Una parola entra nell&apos;elenco solo se il
+            gruppo la usa in almeno cinque interventi diversi. I nomi dei gruppi e il lessico
+            procedurale («emendamento», «ordine del giorno») sono esclusi. Lo stesso metodo produce
+            le parole di ogni tema e di ogni schieramento.
+          </Definition>
+          <Definition term="Identità · indice di generalismo">
+            Quanto un parlamentare o un gruppo distribuisce i propri interventi fra le aree, su una
+            scala da 0 (una sola area) a 100 (tutte le aree in egual misura). È calcolato solo per
+            chi ha almeno 20 interventi classificati: con pochi interventi chiunque sembrerebbe
+            specializzato.
+          </Definition>
+          <Definition term="Temi">
+            Per ogni area: i parlamentari che vi intervengono più spesso (con almeno tre interventi
+            sul tema) e quale parte dei loro interventi complessivi vi dedicano; e, per ogni
+            gruppo, quanto è presente sul tema rispetto al suo peso nel dibattito — ×1 vuol dire in
+            proporzione, ×2 il doppio.
           </Definition>
           <Definition term="Maggioranza e opposizione">
-            La maggioranza comprende i gruppi che sostengono il Governo e i membri del Governo;
-            l&apos;opposizione tutti gli altri gruppi, escluso il Misto. Un tema «appartiene» a uno
-            schieramento quando questo gli dedica almeno 1,4 volte la quota dei propri interventi
-            che gli dedica l&apos;altro. Si confrontano quote e non conteggi, perché
-            l&apos;opposizione interviene di più in assoluto.
+            Per ogni area si confronta la quota dei propri interventi che ciascuno schieramento le
+            dedica. Si usano le quote e non i numeri assoluti perché i due schieramenti non
+            prendono la parola con la stessa frequenza. Un tema è attribuito a uno schieramento
+            quando questo gli dedica almeno 1,4 volte l&apos;attenzione dell&apos;altro; altrimenti
+            è condiviso.
           </Definition>
-          <Definition term="Affinità e omogeneità">
-            L&apos;affinità è la somiglianza fra i baricentri semantici di due gruppi;
-            l&apos;omogeneità è la somiglianza media fra gli interventi di uno stesso gruppo. Entrambe
-            sono calcolate dopo aver rimosso la componente comune, per cui 0 equivale a due
-            interventi presi a caso. Indicano sovrapposizione di linguaggio e di temi, non vicinanza
-            politica.
+          <Definition term="Relazioni · affinità e omogeneità">
+            L&apos;affinità fra due gruppi è la somiglianza fra i loro interventi medi; l&apos;omogeneità
+            di un gruppo è quanto i suoi interventi si somigliano fra loro. Entrambe sono calcolate
+            dopo aver tolto la componente comune a tutti gli interventi, per cui 0 equivale alla
+            somiglianza fra due interventi qualsiasi. Indicano sovrapposizione di linguaggio e di
+            temi, non vicinanza politica, e un gruppo che parla di pochi argomenti risulta più
+            omogeneo.
+          </Definition>
+          <Definition term="Relazioni · ponti fra gruppi">
+            Le coppie di parlamentari di gruppi diversi i cui interventi, in media, si somigliano di
+            più. Sono considerati solo parlamentari con almeno 10 interventi; il simbolo ⇄ indica
+            una coppia che attraversa maggioranza e opposizione.
           </Definition>
           <Definition term="Applausi e proteste">
-            Le note del resoconto — «(Applausi dei deputati del gruppo …)», «(Proteste …)» — dicono
-            come gli altri gruppi hanno reagito a un intervento. Ogni intervento conta una volta per
-            ciascun gruppo che lo applaude. Al Senato le note riportano solo «(Applausi)»: si può
-            misurare quanto un gruppo viene applaudito, non da chi.
+            I resoconti annotano le reazioni dell&apos;Aula: «(Applausi dei deputati del gruppo …)»,
+            «(Proteste …)», «(Commenti …)». Ogni intervento conta una volta per ciascun gruppo che
+            lo applaude o lo contesta. La matrice «chi applaude chi» esclude gli applausi del
+            proprio gruppo, che sono la norma. I resoconti del Senato riportano solo «(Applausi)»
+            senza indicare il gruppo: per il Senato si può dire quanto un gruppo viene applaudito,
+            non da chi.
           </Definition>
           <Definition term="Chi nomina chi">
-            Frequenza con cui gli interventi di ciascun gruppo nominano un elenco di leader, ministri
-            e capi di governo stranieri, ogni 100 interventi. Una menzione non dice se è una critica
-            o un sostegno.
+            Quante volte, ogni 100 interventi, ciascun gruppo nomina un elenco di leader di partito,
+            ministri, il Presidente della Repubblica e alcuni capi di governo stranieri. Un nome è
+            riconosciuto dal cognome scritto con l&apos;iniziale maiuscola, un intervento conta una
+            volta per figura, e chi parla non viene contato quando nomina se stesso. Una menzione non
+            dice se si tratta di una critica o di un sostegno.
           </Definition>
-          <Definition term="Indice di generalismo">
-            Entropia della distribuzione tematica, normalizzata su scala 0–100 rispetto alle
-            quattordici aree. Calcolato solo per chi ha almeno 20 interventi classificati: con pochi
-            interventi l&apos;entropia è sottostimata per costruzione.
+          <Definition term="Tendenze">
+            La quota degli interventi di ogni mese dedicata a ciascuna area, e il numero di
+            interventi al mese per schieramento. Si usano le quote perché il numero di sedute cambia
+            molto da un mese all&apos;altro. Le tendenze coprono sempre l&apos;intero periodo
+            disponibile.
           </Definition>
-          <Definition term="Varietà lessicale">
-            MATTR, il rapporto fra parole diverse e parole totali calcolato su finestre di 500
-            parole e poi mediato. A differenza del semplice rapporto, non premia chi parla meno.
+          <Definition term="Linguaggio · leggibilità">
+            L&apos;indice Gulpease, tarato sull&apos;italiano, combina la lunghezza delle parole e
+            quella delle frasi: sotto 55 un testo è difficile per chi ha la licenza media, sopra 80
+            è facile. Le frasi sono quelle del resoconto, la cui punteggiatura è decisa dagli
+            stenografi; le differenze fra gruppi sono piccole e vanno lette come tali.
           </Definition>
-          <Definition term="Indice Gulpease">
-            Misura di leggibilità tarata sull&apos;italiano. Sotto 55 il testo è considerato
-            difficile per un lettore con licenza media. Le frasi sono quelle del resoconto: la
-            punteggiatura è degli stenografi.
+          <Definition term="Linguaggio · polarizzazione">
+            Quante contrapposizioni «noi/loro», espressioni avversative («contro», «nemici») e
+            formule oppositive compaiono ogni mille parole. Riguarda la forma del linguaggio, non le
+            posizioni: citare un avversario per contestarlo conta quanto sostenerlo. Il valore
+            mostrato è la frequenza; la lunghezza della barra è il percentile, cioè la posizione
+            rispetto agli altri parlamentari. Nelle classifiche entrano solo parlamentari con almeno
+            10 interventi.
           </Definition>
-          <Definition term="Polarizzazione">
-            Frequenza di contrapposizioni «noi/loro», avversative e formule oppositive ogni mille
-            parole. Riguarda la forma del linguaggio, non il contenuto delle posizioni: citare un
-            avversario per contestarlo conta quanto sostenerlo.
-          </Definition>
-          <Definition term="Valori grezzi e percentili">
-            Le metriche costruite su lessici di marcatori sono pubblicate in due forme. Il{' '}
-            <em>valore grezzo</em> ha un&apos;unità dichiarata — marcatori ogni mille parole — e non
-            ha un tetto. Il <em>percentile</em> indica la posizione rispetto agli altri
-            parlamentari dello stesso insieme di dati, ed è ciò che determina la lunghezza delle
-            barre e l&apos;ordine delle classifiche.
+          <Definition term="Parlamentari">
+            Per chi ha almeno 5 interventi nel periodo: numero di interventi e di giornate in cui ha
+            preso la parola, mesi con almeno un intervento, lunghezza media degli interventi, temi
+            principali e reazioni ricevute da altri gruppi. La varietà lessicale è misurata come
+            rapporto fra parole diverse e parole totali su finestre di 500 parole (MATTR), così da
+            non favorire chi parla meno; richiede almeno 1.000 parole. Il profilo linguistico
+            riporta domande, uso della prima persona, negazioni, dati citati (percentuali, importi,
+            cifre), lunghezza delle frasi e varietà lessicale, ciascuno su una scala fissa.
           </Definition>
         </Section>
 
-        <Section title="Cosa è stato tolto, e perché">
-          <ul className="ml-4 list-disc [&>li]:mt-2">
-            <li>
-              <strong className="text-ink">Sentiment lessicale.</strong> Contava 25 parole
-              «positive» e 25 «negative», fra cui «problema», «rischio» e «obiettivo»: le differenze
-              fra temi erano indistinguibili da zero e le classifiche erano guidate da chi aveva un
-              solo intervento.
-            </li>
-            <li>
-              <strong className="text-ink">Retorica populista e anti-establishment.</strong> I
-              lessici contenevano parole neutre in Parlamento, come «cittadini» e «sistema».
-            </li>
-            <li>
-              <strong className="text-ink">Indice di crisi, deriva semantica, cambi di tema,
-              coerenza, fazioni.</strong> Misuravano soprattutto il tema discusso o la quantità di
-              interventi, non ciò che dichiaravano di misurare.
-            </li>
-            <li>
-              <strong className="text-ink">Indipendenza tematica.</strong> Dipendeva dal tema
-              prevalente del gruppo, che con l&apos;assegnazione precedente era quasi sempre lo
-              stesso per tutti.
-            </li>
-          </ul>
+        <Section title="Periodi e soglie minime">
+          <p>
+            Ogni analisi può essere ristretta a un anno o a un mese. Alcune misure hanno però
+            bisogno di molti interventi per essere affidabili: l&apos;affinità fra gruppi ne
+            richiede almeno 200 nel periodo, il profilo tematico e il confronto fra schieramenti
+            150, temi, applausi e menzioni 100, linguaggio e profili individuali 50. Quando il
+            periodo scelto non basta, la pagina mostra il dato dell&apos;intero periodo disponibile
+            e lo segnala con un avviso.
+          </p>
+          <p>
+            Allo stesso modo molte classifiche richiedono un minimo di interventi per parlamentare,
+            indicato sotto ciascun pannello: un elenco vuoto di norma significa «sotto soglia», non
+            «errore».
+          </p>
         </Section>
 
         <Section title="Limiti da tenere presenti">
@@ -162,19 +204,17 @@ export default function Method() {
               condizioni: i periodi coperti e il numero di interventi raccolti differiscono.
             </li>
             <li>
-              <strong className="text-ink">Molte metriche hanno soglie minime.</strong> A seconda
-              dell&apos;indicatore servono da 5 a 20 interventi per parlamentare: un pannello vuoto di
-              norma significa «sotto soglia», non «errore».
+              <strong className="text-ink">Il tema è assegnato in automatico.</strong> Un intervento
+              che tocca più argomenti riceve una sola area, e il modello legge circa le prime cento
+              parole di ogni intervento.
             </li>
             <li>
-              <strong className="text-ink">Non tutte le metriche esistono per ogni periodo.</strong>{' '}
-              Le misure che richiedono un campione ampio — affinità fra gruppi, vocabolario
-              distintivo, confronto fra schieramenti — non vengono ricalcolate su una singola
-              mensilità. In quei casi la pagina mostra il dato complessivo e lo segnala.
+              <strong className="text-ink">Le misure lessicali contano parole, non significati.</strong>{' '}
+              Non riconoscono ironia, citazioni o negazioni.
             </li>
             <li>
-              <strong className="text-ink">Parlare non è deliberare.</strong> Nessuna metrica qui
-              misura voti, presenze o esiti legislativi.
+              <strong className="text-ink">Parlare non è deliberare.</strong> Nessuna metrica misura
+              voti, presenze o esiti legislativi.
             </li>
           </ul>
         </Section>
