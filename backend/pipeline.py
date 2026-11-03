@@ -55,6 +55,19 @@ def generate_embeddings(texts: list, model_name: str = EMBEDDING_MODEL) -> np.nd
     return embeddings
 
 
+def embed_texts(texts: list, model_name: str = EMBEDDING_MODEL) -> np.ndarray:
+    """
+    Embeddings for `texts`, encoding only the ones never seen before.
+
+    The model itself is loaded only if something is missing, so a re-run over
+    an unchanged corpus never pays the ~15 s model load.
+    """
+    from backend.core.cache import EmbeddingStore
+
+    store = EmbeddingStore(model_name)
+    return store.get(list(texts), lambda missing: generate_embeddings(missing, model_name=model_name))
+
+
 def reduce_dimensions(
     embeddings: np.ndarray,
     method: Optional[str] = None,

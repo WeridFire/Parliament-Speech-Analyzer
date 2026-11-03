@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useData } from './DataProvider';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useData } from './context';
 
 /**
  * On-demand access to the dataset's non-core resources.
@@ -51,30 +51,48 @@ export function useSpeeches() {
 }
 
 /**
- * Analytics for a period, falling back to the global block.
+ * Analytics for the selected period, plus the global block to fall back on.
  *
- * `hasOwn` reports whether the requested period had its own analytics, which is
- * how the UI can distinguish "this month" from "global, because this month was
- * too thin for these metrics to mean anything".
+ * Fallback is per section, not per file: a month can carry its own speaker
+ * statistics while party affinity - which needs a larger sample - was only
+ * computed for the whole corpus. The previous version picked one file and,
+ * when the month's file lacked a section, the tab showed "no data" even though
+ * the global figure existed (and the methodology page promised it would be
+ * shown). It also silently substituted the year's file for a missing month.
+ *
+ * Returns { status, section(name) -> { data, fromGlobal }, global }.
  */
 export function useAnalytics(period) {
   const { resources } = useData();
+  const analytics = resources?.analytics;
 
-  const { path, hasOwn } = useMemo(() => {
-    const analytics = resources?.analytics;
-    if (!analytics) return { path: null, hasOwn: false };
+  const periodPath = useMemo(() => {
+    if (!analytics || !period?.year) return null;
+    const key = period.month ? `${period.year}-${period.month}` : String(period.year);
+    const bucket = period.month ? analytics.by_month : analytics.by_year;
+    return bucket?.[key]?.path ?? null;
+  }, [analytics, period?.year, period?.month]);
 
-    if (period?.year && period?.month) {
-      const ref = analytics.by_month?.[`${period.year}-${period.month}`];
-      if (ref) return { path: ref.path, hasOwn: true };
-    }
-    if (period?.year) {
-      const ref = analytics.by_year?.[String(period.year)];
-      if (ref) return { path: ref.path, hasOwn: true };
-    }
-    return { path: analytics.global?.path ?? null, hasOwn: !period?.year };
-  }, [resources, period?.year, period?.month]);
+  const globalState = useResource(analytics?.global?.path);
+  const periodState = useResource(periodPath);
 
-  const state = useResource(path);
-  return { ...state, hasOwn };
+  const scoped = Boolean(period?.year);
+  const status =
+    globalState.status === 'error' || periodState.status === 'error'
+      ? 'error'
+      : globalState.status === 'loading' || periodState.status === 'loading'
+        ? 'loading'
+        : 'ready';
+
+  const section = useCallback(
+    (name) => {
+      const own = scoped ? periodState.data?.[name] : globalState.data?.[name];
+      if (own) return { data: own, fromGlobal: false };
+      const fallback = scoped ? globalState.data?.[name] : null;
+      return { data: fallback ?? null, fromGlobal: Boolean(fallback) };
+    },
+    [scoped, periodState.data, globalState.data],
+  );
+
+  return { status, section, global: globalState.data };
 }

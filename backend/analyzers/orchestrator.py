@@ -49,6 +49,8 @@ class AnalyticsOrchestrator:
         source: str = 'default',
         config_path: Optional[Path] = None,
         granularity: str = 'global',
+        terms=None,
+        vocabulary: Optional[np.ndarray] = None,
         # Column names
         text_col: str = 'cleaned_text',
         speaker_col: str = 'deputy',
@@ -66,6 +68,8 @@ class AnalyticsOrchestrator:
             cluster_centroids: Array of cluster centroid vectors
             source: Data source name (e.g., 'camera', 'senato')
             config_path: Path to config.yaml
+            terms: Sparse speech x term counts, row-aligned with df
+            vocabulary: Term for each column of `terms`
             text_col, speaker_col, party_col, cluster_col, date_col: Column names
         """
         self.df = df
@@ -76,6 +80,8 @@ class AnalyticsOrchestrator:
         # 'global' | 'year' | 'month' - analyzers decide for themselves whether
         # they are meaningful at this granularity and sample size.
         self.granularity = granularity
+        self.terms = terms
+        self.vocabulary = vocabulary
         
         # Column names
         self.text_col = text_col
@@ -101,6 +107,8 @@ class AnalyticsOrchestrator:
             cluster_labels=self.cluster_labels,
             cluster_centroids=self.cluster_centroids,
             config=self.config,
+            terms=self.terms,
+            vocabulary=self.vocabulary,
             text_col=self.text_col,
             speaker_col=self.speaker_col,
             party_col=self.party_col,
@@ -177,6 +185,7 @@ class AnalyticsOrchestrator:
             'embeddings': self.embeddings is not None,
             'cluster_centroids': self.cluster_centroids is not None,
             'cluster_labels': bool(self.cluster_labels),
+            'terms': self.terms is not None,
         }
         return [dep for dep in deps if dep in available and not available[dep]]
 

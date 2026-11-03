@@ -22,8 +22,8 @@ class TestAnalyzerRegistry:
         from backend.analyzers import AnalyzerRegistry
         
         expected = [
-            'identity', 'sentiment', 'temporal', 'relations',
-            'speaker', 'rhetoric', 'factions', 'alliances', 'topics'
+            'identity', 'topics', 'blocs', 'relations', 'reactions',
+            'mentions', 'temporal', 'speaker', 'language',
         ]
         
         names = AnalyzerRegistry.names()

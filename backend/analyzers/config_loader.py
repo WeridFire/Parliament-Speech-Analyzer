@@ -28,30 +28,20 @@ DEFAULT_CONFIG = {
     'identity': {
         'enabled': True,
         'features': {
-            'thematic_fingerprint': True,
+            'topic_profile': True,
             'generalism_index': True,
             'distinctive_keywords': True,
         }
     },
-    'sentiment': {
+    'topics': {
         'enabled': True,
-        'use_transformer': False,
-        'features': {
-            'topic_sentiment': True,
-            'readability': True,
-            'polarization': True,
-            'party_topic_sentiment': True,
-            'sentiment_rankings': True,
-        }
     },
-    'temporal': {
+    'blocs': {
         'enabled': True,
-        'granularity': 'month',
         'features': {
-            'topic_trends': True,
-            'semantic_drift': True,
-            'crisis_index': True,
-            'topic_surfing': True,
+            'summary': True,
+            'ownership': True,
+            'keywords': True,
         }
     },
     'relations': {
@@ -59,52 +49,36 @@ DEFAULT_CONFIG = {
         'features': {
             'affinity_matrix': True,
             'party_cohesion': True,
-            'thematic_overlap': True,
             'cross_party_pairs': True,
+        }
+    },
+    'reactions': {
+        'enabled': True,
+    },
+    'mentions': {
+        'enabled': True,
+    },
+    'temporal': {
+        'enabled': True,
+        'granularity': 'month',
+        'features': {
+            'topic_trends': True,
         }
     },
     'speaker': {
         'enabled': True,
         'features': {
-            'verbosity': True,
-            'linguistic': True,
-            'consistency': True,
-            'topic_leadership': True,
-            'intervention_patterns': True,
+            'profile': True,
             'vocabulary': True,
-            'network': True,
-            'entity_focus': False,
         }
     },
-    'rhetoric': {
+    'language': {
         'enabled': True,
         'features': {
-            'populist': True,
-            'anti_establishment': True,
-            'emotional': True,
-            'institutional': True,
+            'readability': True,
+            'polarization': True,
         }
     },
-    'factions': {
-        'enabled': True,
-        'features': {
-            'conformity': True,
-            'faction_detection': True,
-        }
-    },
-    'alliances': {
-        'enabled': True,
-        'features': {
-            'transversal_clusters': True,
-            'unusual_pairs': True,
-            'left_right_alliances': True,
-        }
-    },
-    'topics': {
-        'enabled': True,
-        'use_pos_filtering': True,
-        'top_n_keywords': 5,
-    }
 }
 
 

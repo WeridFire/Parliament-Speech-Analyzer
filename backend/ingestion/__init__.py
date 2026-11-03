@@ -44,6 +44,7 @@ SOURCES = {
 
 __all__ = [
     'fetch_all_speeches',
+    'load_cached_sittings',
     'fetch_source_speeches',
     'CameraSource',
     'SenatoSource',
@@ -85,6 +86,35 @@ def fetch_source_speeches(
 
     records = [s.as_record(chamber) for s in speeches]
     return pd.DataFrame(records), report
+
+
+def load_cached_sittings(
+    source: str = 'both',
+    cache: Optional[ArtifactCache] = None,
+) -> pd.DataFrame:
+    """
+    Rebuild the corpus from the per-sitting cache, without touching the network.
+
+    For when the open-data endpoints are down: discovery needs SPARQL, but every
+    sitting fetched before is already parsed on disk. Uses every cached sitting
+    of the chamber, whatever its date.
+    """
+    import json
+
+    cache = cache or ArtifactCache()
+    chambers = ['senate', 'camera'] if source == 'both' else [source]
+    frames = []
+
+    for chamber in chambers:
+        records = []
+        for path in sorted(cache.root.glob(f"session_{chamber}_*.json")):
+            with open(path, 'r', encoding='utf-8') as f:
+                records.extend(Speech(**row).as_record(chamber) for row in json.load(f))
+        logger.info("%s: %d speeches from cached sittings", chamber, len(records))
+        if records:
+            frames.append(pd.DataFrame(records))
+
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
 def fetch_all_speeches(

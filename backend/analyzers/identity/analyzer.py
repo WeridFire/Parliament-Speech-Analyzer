@@ -2,21 +2,17 @@
 Identity Analyzer - Main analyzer class for identity metrics.
 
 Orchestrates:
-- Thematic Fingerprint
+- Topic Profile
 - Generalism Index
 - Distinctive Keywords
 """
 
 import logging
-from typing import Optional
-
-import numpy as np
-import pandas as pd
 
 from backend.analyzers.base import BaseAnalyzer
 from backend.analyzers.registry import analyzer
 
-from .fingerprint import compute_thematic_fingerprint
+from .profile import compute_topic_profile
 from .generalism import compute_generalism_index
 from .keywords import compute_distinctive_keywords
 
@@ -26,79 +22,69 @@ logger = logging.getLogger(__name__)
 @analyzer
 class IdentityAnalyzer(BaseAnalyzer):
     """
-    Analyzer for political identity and DNA.
-    
-    Computes:
-    - thematic_fingerprint: Radar chart of topic affinity
-    - generalism_index: Entropy-based specialization score
-    - distinctive_keywords: TF-IDF distinctive terms per party
-    """
-    
-    name = "identity"
-    description = "Political identity and DNA analysis"
-    version = "1.0"
+    Analyzer for political identity.
 
-    # Entropy-based generalism and TF-IDF distinctiveness both need a corpus to
-    # be distinctive *against*; on a thin slice they mostly measure sampling.
+    Computes:
+    - topic_profile: share of each group's speeches per topic, and lift over the chamber
+    - generalism_index: entropy-based specialization score
+    - distinctive_keywords: log-odds distinctive terms per party
+    """
+
+    name = "identity"
+    description = "What each group talks about, and with which words"
+    version = "2.0"
+
+    # Entropy and distinctive vocabulary both need a corpus to be distinctive
+    # *against*; on a thin slice they mostly measure sampling.
     min_speeches = 150
-    
+
     default_features = {
-        'thematic_fingerprint': True,
+        'topic_profile': True,
         'generalism_index': True,
         'distinctive_keywords': True,
     }
-    
+
     @classmethod
     def get_dependencies(cls) -> list[str]:
-        """Identity analyzer requires embeddings and cluster centroids."""
-        return ['embeddings', 'cluster_labels', 'cluster_centroids']
-    
+        return ['cluster_labels']
+
     def compute(self) -> dict:
         """
-        Compute all identity metrics.
-        
         Returns:
-            {
-                'thematic_fingerprints': {...},
-                'generalism_index': {...},
-                'distinctive_keywords': {...}
-            }
+            {'topic_profile': {...}, 'generalism_index': {...}, 'distinctive_keywords': {...}}
         """
         self.validate_dependencies()
-        
         result = {}
-        
-        # Thematic Fingerprint
-        if self.is_feature_enabled('thematic_fingerprint'):
-            logger.info("Computing thematic fingerprints...")
-            result['thematic_fingerprints'] = compute_thematic_fingerprint(
+
+        if self.is_feature_enabled('topic_profile'):
+            logger.info("Computing topic profiles...")
+            result['topic_profile'] = compute_topic_profile(
                 df=self.df,
-                embeddings=self.embeddings,
-                cluster_centroids=self.cluster_centroids,
                 cluster_labels=self.cluster_labels,
-                speaker_col=self.speaker_col,
-                party_col=self.party_col
+                cluster_col=self.cluster_col,
+                party_col=self.party_col,
             )
-        
-        # Generalism Index
+
         if self.is_feature_enabled('generalism_index'):
             logger.info("Computing generalism index...")
             result['generalism_index'] = compute_generalism_index(
                 df=self.df,
+                cluster_labels=self.cluster_labels,
                 cluster_col=self.cluster_col,
                 speaker_col=self.speaker_col,
-                party_col=self.party_col
+                party_col=self.party_col,
             )
-        
-        # Distinctive Keywords
-        if self.is_feature_enabled('distinctive_keywords'):
+
+        # The term matrix is optional: without it the keywords are skipped
+        # rather than recomputed from raw text.
+        if self.is_feature_enabled('distinctive_keywords') and self.terms is not None:
             logger.info("Computing distinctive keywords...")
             result['distinctive_keywords'] = compute_distinctive_keywords(
                 df=self.df,
+                terms=self.terms,
+                vocabulary=self.vocabulary,
                 party_col=self.party_col,
-                # POS filtering keeps nouns and adjectives, which needs real tagging
-                text_col=self.nlp_text_col,
             )
-        
+
         logger.info("Identity analysis complete")
         return result

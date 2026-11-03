@@ -345,12 +345,27 @@ class TestCrawler:
         return seen
 
     def test_source_declares_its_own_concurrency(self, cache, pool_spy):
-        """A source that cannot be fetched in parallel must not be."""
+        """
+        A source that cannot be fetched in parallel is fetched in the calling
+        thread: the browser transport is bound to the thread that started it,
+        and a one-worker pool is still a different thread.
+        """
+        import threading
+
+        threads = set()
         source = FakeSource(make_sessions(2))
         source.max_workers = 1
+        original = source.fetch_session
+
+        def fetch(ref):
+            threads.add(threading.get_ident())
+            return original(ref)
+
+        source.fetch_session = fetch
         crawl(source, months_back=2, cache=cache)
 
-        assert pool_spy['max_workers'] == 1
+        assert 'max_workers' not in pool_spy
+        assert threads == {threading.get_ident()}
 
     def test_explicit_workers_override_the_source(self, cache, pool_spy):
         source = FakeSource(make_sessions(2))
@@ -388,3 +403,112 @@ class TestCrawler:
         assert report.known == 0
         assert not report.ok
         assert any('open data down' in e for e in report.errors)
+
+
+# =============================================================================
+# REGRESSIONS
+# =============================================================================
+
+SENATO_LISTING = """
+<table>
+<tr>
+  <td class="tab2">Martedì 23 Dicembre 2025</td>
+  <td class="tab2" style="font-weight: bold"> 375</td>
+  <td class="tab2"><a href="/show-doc?leg=19&amp;tipodoc=Resaula&amp;id=1491441&amp;idoggetto=0"
+     title="Resoconto 375.html">html</a></td>
+  <td class="tab2"><a href="//www.senato.it/service/PDF/PDFServer/BGT/1491441.pdf"
+     title="Resoconto 375.pdf">pdf</a></td>
+</tr>
+<tr>
+  <td class="tab2">Martedì 23 Dicembre 2025</td>
+  <td class="tab2"> 376</td>
+  <td class="tab2"><a href="/show-doc?leg=19&amp;tipodoc=Resaula&amp;id=1491505&amp;idoggetto=0"
+     title="Resoconto 376.html">html</a></td>
+</tr>
+</table>
+"""
+
+
+class TestSenatoDocumentIds:
+    """The open-data sitting id is not the senato.it document id."""
+
+    def test_listing_maps_sitting_numbers_to_documents(self):
+        from backend.ingestion.senato import parse_report_listing
+
+        assert parse_report_listing(SENATO_LISTING) == {375: '1491441', 376: '1491505'}
+
+    def test_sessions_use_the_document_id(self, monkeypatch):
+        from backend.ingestion import senato as senato_module
+
+        class FakeClient:
+            def select(self, query):
+                return [{
+                    'seduta': 'http://dati.senato.it/sedutaassemblea/24374',
+                    'data': '2025-12-23',
+                    'numero': '375',
+                }]
+
+        class FakeTransport:
+            def get(self, url):
+                return SENATO_LISTING
+
+        monkeypatch.setattr(senato_module, 'senato_client', lambda: FakeClient())
+        [ref] = SenatoSource(transport=FakeTransport()).list_sessions(months_back=2)
+
+        assert ref.session_id == '24374'
+        assert 'id=1491441' in ref.url
+        assert '24374' not in ref.url
+
+
+class TestRosterMembership:
+    """A dissolved group's open membership must not beat the newer one."""
+
+    def test_most_recent_open_membership_wins(self):
+        from backend.ingestion.rosters import _group_label_date, _membership_rank
+
+        old = {'current': True, 'since': _group_label_date('AZIONE - ITALIA VIVA - RENEW EUROPE (13.10.2022)')}
+        new = {'current': True, 'since': _group_label_date('AZIONE-POPOLARI EUROPEISTI RIFORMATORI-RENEW EUROPE (14.02.2024)')}
+        closed = {'current': False, 'since': '2025-01-01'}
+
+        assert _membership_rank(new) > _membership_rank(old)
+        assert _membership_rank(old) > _membership_rank(closed)
+
+    def test_partial_roster_fetch_keeps_the_other_chamber(self, tmp_path, monkeypatch):
+        from backend.ingestion import rosters as rosters_module
+
+        cache = ArtifactCache(tmp_path)
+        key = rosters_module.CacheKey(kind='rosters', source='leg19')
+        cache.save_json(key, [vars(entry('Rossi Mario', 'PD')), vars(entry('Bianchi Anna', chamber='senate'))])
+
+        def down(legislature):
+            raise RuntimeError('502')
+
+        monkeypatch.setattr(rosters_module, 'fetch_camera_roster', down)
+        monkeypatch.setattr(rosters_module, 'fetch_senato_roster', lambda legislature: [entry('Verdi Luca', chamber='senate')])
+
+        index = rosters_module.build_roster_index(cache=cache, force_refresh=True)
+
+        assert 'Rossi Mario' in index.all_names
+        assert 'Verdi Luca' in index.all_names
+
+
+class TestRecords:
+
+    def test_stage_directions_survive_into_the_record(self):
+        speech = Speech(
+            speaker='Rossi Mario', party='PD', text='Testo', date='2025-01-01',
+            notes=['Applausi dei deputati del gruppo Partito Democratico'],
+        )
+        assert speech.as_record('camera')['notes'] == ['Applausi dei deputati del gruppo Partito Democratico']
+
+    def test_offline_corpus_comes_from_cached_sittings(self, tmp_path):
+        from backend.ingestion import load_cached_sittings
+
+        cache = ArtifactCache(tmp_path)
+        speech = Speech(speaker='Rossi Mario', party='PD', text='Testo', date='2025-01-01')
+        cache.save_json(crawler_module._session_key(make_sessions(1)[0]), [vars(speech)])
+
+        df = load_cached_sittings('camera', cache=cache)
+
+        assert len(df) == 1
+        assert df.loc[0, 'deputy'] == 'Rossi Mario [PD]'

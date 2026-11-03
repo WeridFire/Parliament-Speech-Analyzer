@@ -18,7 +18,10 @@ import { CHROME, sequentialScale, divergingScale } from '../palette';
  *
  * @param {string[]}   xLabels
  * @param {string[]}   yLabels
- * @param {number[][]} values   rows = y, cols = x
+ * @param {number[][]} values     rows = y, cols = x; null leaves a cell blank
+ * @param {string[][]} hoverText  optional per-cell hover line, when the colour
+ *                                encodes a transform of the value (a log ratio)
+ * @param {number}     zmid       centre of a diverging scale
  */
 export function Matrix({
   xLabels,
@@ -28,6 +31,8 @@ export function Matrix({
   scale = 'sequential',
   zmin,
   zmax,
+  zmid,
+  hoverText,
   height = 420,
   valueFormat = '.2f',
   colorbarTitle,
@@ -48,11 +53,15 @@ export function Matrix({
           z: values,
           zmin,
           zmax,
+          zmid,
+          text: hoverText,
           colorscale: diverging ? divergingScale(mode) : sequentialScale(mode),
           // A hairline between cells keeps adjacent values separable.
           xgap: 1,
           ygap: 1,
-          hovertemplate: `<b>%{y}</b> · %{x}<br>%{z:${valueFormat}}<extra></extra>`,
+          hovertemplate: hoverText
+            ? '<b>%{y}</b> · %{x}<br>%{text}<extra></extra>'
+            : `<b>%{y}</b> · %{x}<br>%{z:${valueFormat}}<extra></extra>`,
           colorbar: {
             title: colorbarTitle ? { text: colorbarTitle, side: 'right' } : undefined,
             thickness: 10,
@@ -81,7 +90,7 @@ export function Matrix({
       }),
       config: buildConfig({ filename: title ?? 'matrice' }),
     };
-  }, [xLabels, yLabels, values, mode, scale, zmin, zmax, valueFormat, colorbarTitle, xTitle, yTitle, title]);
+  }, [xLabels, yLabels, values, mode, scale, zmin, zmax, zmid, hoverText, valueFormat, colorbarTitle, xTitle, yTitle, title]);
 
   return (
     <Chart

@@ -50,12 +50,12 @@ export default function Home() {
           <Feature
             icon={BarChart3}
             title="Analisi aggregate"
-            body="Identità tematica, affinità e coesione tra gruppi, andamenti nel tempo, leggibilità e polarizzazione del linguaggio."
+            body="Su quali temi insiste ogni gruppo, cosa separa maggioranza e opposizione, chi applaude chi in Aula e chi nomina chi."
           />
           <Feature
             icon={Users}
             title="Profili individuali"
-            body="Per ogni parlamentare: verbosità, ricchezza lessicale, costanza tematica, regolarità degli interventi e rete delle citazioni."
+            body="Per ogni parlamentare: attività in Aula, temi principali, lunghezza e varietà lessicale degli interventi, applausi ricevuti da altri gruppi."
           />
         </div>
       </section>

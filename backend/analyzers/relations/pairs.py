@@ -1,12 +1,23 @@
 """
 Cross-Party Pairs - Similar speakers from different parties.
+
+One matrix product instead of the previous pure-Python double loop over every
+pair of speakers (which the alliances analyzer then ran a second time, under
+another name, with the same result).
 """
 import logging
+
 import numpy as np
 import pandas as pd
-from sklearn.metrics.pairwise import cosine_similarity
+
+from backend.analyzers.common import blocs_of
+
+from .cohesion import unit_rows
 
 logger = logging.getLogger(__name__)
+
+# A speaker's average position is only stable over a real sample of speeches.
+MIN_SPEAKER_SPEECHES = 10
 
 
 def find_closest_cross_party_pairs(
@@ -17,53 +28,42 @@ def find_closest_cross_party_pairs(
     top_n: int = 20
 ) -> list:
     """
-    Find pairs of speakers from different parties with most similar discourse.
+    Returns:
+        [{speaker1, party1, speaker2, party2, similarity, crosses_blocs}], most similar first.
+        `crosses_blocs` is True when one speaker sits with the majority and the
+        other with the opposition.
     """
-    speakers = df[speaker_col].unique()
-    
-    # Compute average embedding per speaker
-    speaker_data = {}
-    for speaker in speakers:
-        mask = df[speaker_col] == speaker
-        if mask.sum() < 3:  # Minimum speeches
-            continue
-        
-        party = df[mask][party_col].iloc[0]
-        if party == 'Unknown Group':
-            continue
-            
-        avg_embedding = np.mean(embeddings[mask], axis=0)
-        speaker_data[speaker] = {'party': party, 'embedding': avg_embedding}
-    
-    if len(speaker_data) < 2:
+    vectors = unit_rows(embeddings)
+    counts = df[speaker_col].value_counts()
+    speakers = [s for s, n in counts.items() if n >= MIN_SPEAKER_SPEECHES]
+    if len(speakers) < 2:
         return []
-    
-    # Find cross-party pairs
+
+    names = df[speaker_col].to_numpy()
+    first_rows = df.drop_duplicates(speaker_col).set_index(speaker_col)
+    blocs = blocs_of(first_rows, party_col)
+
+    means = unit_rows(np.stack([vectors[names == s].mean(axis=0) for s in speakers]))
+    similarity = means @ means.T
+    parties = np.array([first_rows.at[s, party_col] for s in speakers])
+
+    # Upper triangle, different parties only.
+    valid = np.triu(parties[:, None] != parties[None, :], k=1)
+    i_idx, j_idx = np.nonzero(valid)
+    order = np.argsort(-similarity[i_idx, j_idx])[:top_n]
+
     pairs = []
-    speaker_list = list(speaker_data.keys())
-    
-    for i, s1 in enumerate(speaker_list):
-        for s2 in speaker_list[i + 1:]:
-            p1 = speaker_data[s1]['party']
-            p2 = speaker_data[s2]['party']
-            
-            if p1 == p2:
-                continue
-            
-            e1 = speaker_data[s1]['embedding']
-            e2 = speaker_data[s2]['embedding']
-            
-            similarity = float(np.dot(e1, e2) / (np.linalg.norm(e1) * np.linalg.norm(e2) + 1e-10))
-            
-            pairs.append({
-                'speaker1': s1,
-                'party1': p1,
-                'speaker2': s2,
-                'party2': p2,
-                'similarity': round(similarity, 4)
-            })
-    
-    pairs.sort(key=lambda x: -x['similarity'])
-    
-    logger.info("Found %d cross-party pairs, returning top %d", len(pairs), top_n)
-    return pairs[:top_n]
+    for k in order:
+        i, j = i_idx[k], j_idx[k]
+        s1, s2 = speakers[i], speakers[j]
+        pairs.append({
+            'speaker1': s1,
+            'party1': parties[i],
+            'speaker2': s2,
+            'party2': parties[j],
+            'similarity': round(float(similarity[i, j]), 4),
+            'crosses_blocs': {blocs[s1], blocs[s2]} == {'maggioranza', 'opposizione'},
+        })
+
+    logger.info("Found %d cross-party pairs among %d speakers", len(pairs), len(speakers))
+    return pairs

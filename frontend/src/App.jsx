@@ -6,9 +6,13 @@ import MapRoute from './routes/Map';
 import Method from './routes/Method';
 import AnalysisLayout from './routes/analysis/AnalysisLayout';
 import Identity from './routes/analysis/Identity';
+import Topics from './routes/analysis/Topics';
+import Blocs from './routes/analysis/Blocs';
 import Relations from './routes/analysis/Relations';
+import Reactions from './routes/analysis/Reactions';
+import Mentions from './routes/analysis/Mentions';
 import Temporal from './routes/analysis/Temporal';
-import Qualitative from './routes/analysis/Qualitative';
+import Language from './routes/analysis/Language';
 import Speakers from './routes/analysis/Speakers';
 
 /**
@@ -44,9 +48,15 @@ export default function App() {
         >
           <Route index element={<Navigate to="identita" replace />} />
           <Route path="identita" element={<Identity />} />
+          <Route path="temi" element={<Topics />} />
+          <Route path="schieramenti" element={<Blocs />} />
           <Route path="relazioni" element={<Relations />} />
+          <Route path="reazioni" element={<Reactions />} />
+          <Route path="menzioni" element={<Mentions />} />
           <Route path="tendenze" element={<Temporal />} />
-          <Route path="qualita" element={<Qualitative />} />
+          <Route path="linguaggio" element={<Language />} />
+          {/* The tab was renamed; keep old shared links working. */}
+          <Route path="qualita" element={<Navigate to="../linguaggio" replace />} />
           <Route path="parlamentari" element={<Speakers />} />
         </Route>
 

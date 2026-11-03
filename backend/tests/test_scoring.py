@@ -9,7 +9,8 @@ same score - exactly where the metric claimed to discriminate.
 
 import pytest
 
-from backend.analyzers.sentiment.polarization import compute_polarization_score, compute_polarization_scores
+from backend.analyzers.language.polarization import MIN_SPEECHES, compute_polarization_scores
+from backend.core.features import WORD_RE, add_speech_features, polarization_rate
 from backend.scoring import Score, percentile_ranks, rate_per_thousand, score_map
 from backend.scoring.normalize import classify_by_percentile
 
@@ -80,31 +81,36 @@ class TestClassification:
         assert classify_by_percentile(10) == 'bassa'
 
 
+def polarization_of(text: str) -> float:
+    lower = text.lower()
+    return polarization_rate(lower, WORD_RE.findall(lower))
+
+
 class TestPolarization:
 
     def test_markers_raise_the_rate(self):
-        neutral = compute_polarization_score(
+        neutral = polarization_of(
             'Il provvedimento introduce misure tecniche per il settore agricolo nazionale.'
         )
-        oppositional = compute_polarization_score(
+        oppositional = polarization_of(
             'Noi contro di loro, sempre: loro sono i nemici del paese, noi difendiamo tutti.'
         )
-        assert oppositional['rate'] > neutral['rate']
+        assert oppositional > neutral
 
     def test_empty_text_scores_zero(self):
-        assert compute_polarization_score('')['rate'] == 0.0
+        assert polarization_of('') == 0.0
 
     def test_extreme_texts_remain_distinguishable(self):
         """The saturation bug: both of these used to score exactly 100."""
-        dense = compute_polarization_score('noi loro noi loro contro nemici')
-        denser = compute_polarization_score('noi contro loro ' * 20)
-        assert dense['rate'] != denser['rate']
+        dense = polarization_of('noi loro noi loro contro nemici')
+        denser = polarization_of('noi contro loro ' * 20)
+        assert dense != denser
 
     @pytest.fixture
     def scored(self):
         rows = []
-        for i in range(12):
-            oppositional = i >= 8
+        for i in range(4 * MIN_SPEECHES):
+            oppositional = i % 4 == 3
             text = (
                 'Noi contro di loro, sono i nemici del paese e noi li combattiamo sempre.'
                 if oppositional
@@ -113,15 +119,15 @@ class TestPolarization:
             rows.append({
                 'deputy': f'Speaker_{i % 4}',
                 'group': 'Party_A' if i % 2 == 0 else 'Party_B',
-                'cleaned_text': text,
+                'raw_text': text,
             })
-        return compute_polarization_scores(pd.DataFrame(rows))
+        return compute_polarization_scores(add_speech_features(pd.DataFrame(rows)))
 
     def test_emits_the_shared_score_shape(self, scored):
         for entry in scored['by_speaker'].values():
             assert {'raw', 'pct', 'n'} <= set(entry)
             assert 0 <= entry['pct'] <= 100
-            assert entry['n'] >= 3
+            assert entry['n'] >= MIN_SPEECHES
 
     def test_unit_is_declared(self, scored):
         assert scored['unit'] == 'markers per 1000 words'
@@ -129,6 +135,7 @@ class TestPolarization:
     def test_rankings_are_ordered_by_raw_rate(self, scored):
         raws = [entry['raw'] for entry in scored['top_polarizers']]
         assert raws == sorted(raws, reverse=True)
+        assert scored['top_polarizers'][0]['speaker'] == 'Speaker_3'
 
     def test_parties_are_scored(self, scored):
         assert set(scored['by_party']) == {'Party_A', 'Party_B'}

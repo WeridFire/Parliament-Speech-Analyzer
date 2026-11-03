@@ -213,6 +213,13 @@ def create_mock_cluster_labels() -> dict:
     }
 
 
+def create_mock_terms(df: pd.DataFrame):
+    """Term matrix over the mock texts, built the way the pipeline builds it."""
+    from backend.core.features import build_term_matrix, lemmatize_texts
+
+    return build_term_matrix(lemmatize_texts(df['cleaned_text'].tolist()), min_df=1)
+
+
 # =============================================================================
 # FIXTURE CLASS (for pytest)
 # =============================================================================
@@ -232,6 +239,7 @@ class MockData:
         self.embeddings = create_mock_embeddings(self.df, embedding_dim)
         self.cluster_centroids = create_mock_cluster_centroids(embedding_dim)
         self.cluster_labels = create_mock_cluster_labels()
+        self.terms, self.vocabulary = create_mock_terms(self.df)
         self.n_speeches = n_speeches
         self.n_speakers = len(self.df['deputy'].unique())
         self.n_parties = len(self.df['group'].unique())
@@ -244,6 +252,8 @@ class MockData:
             'embeddings': self.embeddings,
             'cluster_labels': self.cluster_labels,
             'cluster_centroids': self.cluster_centroids,
+            'terms': self.terms,
+            'vocabulary': self.vocabulary,
             'text_col': 'cleaned_text',
             'speaker_col': 'deputy',
             'party_col': 'group',

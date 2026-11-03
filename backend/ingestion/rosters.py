@@ -16,6 +16,7 @@ are visible in the run report instead of invisible in the data.
 """
 
 import logging
+import re
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Optional
@@ -193,6 +194,17 @@ def _clean_group_label(label: str) -> str:
     return label.split(' (')[0].strip()
 
 
+def _group_label_date(label: str) -> str:
+    """'... (07.01.2025)' -> '2025-01-07', or '' when the label carries no date."""
+    match = re.search(r'\((\d{2})\.(\d{2})\.(\d{4})', label or '')
+    return f"{match.group(3)}-{match.group(2)}-{match.group(1)}" if match else ""
+
+
+def _membership_rank(membership: dict) -> tuple:
+    """Open memberships first, then the most recently started."""
+    return (membership['current'], membership['since'])
+
+
 def fetch_camera_roster(legislature: int = LEGISLATURE) -> list[RosterEntry]:
     """Deputies of a legislature, with their current parliamentary group."""
     logger.info("Fetching Camera roster from open data (leg %d)...", legislature)
@@ -201,21 +213,25 @@ def fetch_camera_roster(legislature: int = LEGISLATURE) -> list[RosterEntry]:
         CAMERA_ROSTER.format(legislature_uri=legislature_uri(legislature))
     )
 
-    # A deputy has one adesione per group they ever joined; the one still open
-    # (no motivoTermine) is their current group.
+    # A deputy has one adesione per group they ever joined. The open one (no
+    # motivoTermine) is their current group - but a dissolved group can leave
+    # its adesioni open: when Azione-Italia Viva split, its members kept an
+    # "open" membership in the old group next to the new one. Among open
+    # memberships the most recently started wins.
     best: dict[str, dict] = {}
     for row in rows:
         uri = row['deputato']
-        current = not row.get('fine')
+        candidate = {
+            'surname': row['cognome'],
+            'first_name': row['nome'],
+            'group': _clean_group_label(row.get('gruppo', '')),
+            'current': not row.get('fine'),
+            'since': _group_label_date(row.get('gruppo', '')),
+            'uri': uri,
+        }
         existing = best.get(uri)
-        if existing is None or (current and not existing['current']):
-            best[uri] = {
-                'surname': row['cognome'],
-                'first_name': row['nome'],
-                'group': _clean_group_label(row.get('gruppo', '')),
-                'current': current,
-                'uri': uri,
-            }
+        if existing is None or _membership_rank(candidate) > _membership_rank(existing):
+            best[uri] = candidate
 
     entries = [
         RosterEntry(
@@ -272,16 +288,28 @@ def build_roster_index(
 
     if not force_refresh:
         cached = cache.load_json(key, max_age_days=ROSTER_CACHE_DAYS)
-        if cached:
+        # A roster missing a whole chamber would reject every speaker of that
+        # chamber as unknown, so it counts as stale however recent it is.
+        if cached and {row['chamber'] for row in cached} >= {'camera', 'senate'}:
             logger.info("Loaded roster from cache (%d members)", len(cached))
             return RosterIndex([RosterEntry(**row) for row in cached])
 
+    # A stale copy is still the best fallback for a chamber whose endpoint is
+    # down. Saving only what was fetched used to overwrite the cache with a
+    # one-chamber roster whenever the other endpoint failed.
+    stale = [RosterEntry(**row) for row in (cache.load_json(key) or [])]
+
     entries: list[RosterEntry] = []
-    for fetch in (fetch_camera_roster, fetch_senato_roster):
+    for chamber, fetch in (('camera', fetch_camera_roster), ('senate', fetch_senato_roster)):
         try:
             entries.extend(fetch(legislature))
         except Exception as e:
-            logger.error("Roster fetch failed (%s): %s", fetch.__name__, e)
+            kept = [entry for entry in stale if entry.chamber == chamber]
+            logger.error(
+                "Roster fetch failed (%s): %s - keeping %d cached entries",
+                fetch.__name__, e, len(kept),
+            )
+            entries.extend(kept)
 
     if entries:
         cache.save_json(key, [vars(e) for e in entries], rows=len(entries))

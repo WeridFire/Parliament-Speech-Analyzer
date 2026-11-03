@@ -7,7 +7,6 @@ General infrastructure and data settings.
 # =============================================================================
 
 # How many months back to fetch speeches (applies to both Camera and Senato)
-# How many months back to fetch speeches (applies to both Camera and Senato)
 MONTHS_BACK = 15
 
 # Data source: 'senate', 'camera', or 'both'
@@ -44,7 +43,10 @@ N_CLUSTERS = 12
 # without a floor every speech is forced into a topic - including procedural
 # remarks that are about nothing. Below this cosine similarity a speech is left
 # unclassified instead of being attributed to the least-bad match.
-TOPIC_MIN_SIMILARITY = 0.20
+# The similarity is taken in the *centred* space (see core/clustering.py), where
+# values are much lower than raw cosines: at 0.05 about 9% of Camera speeches
+# stay unclassified, and the lowest are points of order and courtesy replies.
+TOPIC_MIN_SIMILARITY = 0.05
 UNCLASSIFIED_CLUSTER = -1
 UNCLASSIFIED_LABEL = "Non classificato"
 
@@ -60,14 +62,3 @@ COMPUTE_ANALYTICS_BY_PERIOD = True
 
 # t-SNE perplexity (only used if REDUCTION_METHOD = 'tsne')
 TSNE_PERPLEXITY = 30
-
-
-# =============================================================================
-# OUTPUT
-# =============================================================================
-
-# Output directory for generated files
-OUTPUT_DIR = "output"
-
-# Webapp data file
-WEBAPP_DATA_FILE = "webapp/data.json"

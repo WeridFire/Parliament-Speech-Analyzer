@@ -1,26 +1,32 @@
-import { NavLink, Outlet, useOutletContext } from 'react-router';
+import { NavLink, Outlet } from 'react-router';
 import { useMemo } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { Page } from '../../layout/AppShell';
 import { PeriodControls } from '../../layout/PeriodControls';
-import { useData } from '../../data/DataProvider';
+import { useData } from '../../data/context';
 import { useAnalytics } from '../../data/resources';
 import { useAppParams } from '../../app/useAppParams';
 import { useTheme } from '../../lib/useTheme';
 import { availablePeriods } from '../../data/selectors';
+import { EmptyState, SkeletonCard } from '../../ui';
 import { cn } from '../../lib/cn';
 
 const TABS = [
   { to: 'identita', label: 'Identità' },
+  { to: 'temi', label: 'Temi' },
+  { to: 'schieramenti', label: 'Maggioranza e opposizione' },
   { to: 'relazioni', label: 'Relazioni' },
+  { to: 'reazioni', label: 'Applausi e proteste' },
+  { to: 'menzioni', label: 'Chi nomina chi' },
   { to: 'tendenze', label: 'Tendenze' },
-  { to: 'qualita', label: 'Qualità' },
+  { to: 'linguaggio', label: 'Linguaggio' },
   { to: 'parlamentari', label: 'Parlamentari' },
 ];
 
 /**
  * Shell for the analytics section: one masthead, one set of period controls,
- * one tab bar. Each tab reads its slice from the outlet context, so the
- * global -> year -> month fallback ladder is resolved in exactly one place.
+ * one tab bar. Each tab reads its section through `section(name)`, which
+ * resolves the period -> global fallback in exactly one place.
  */
 export default function AnalysisLayout() {
   const { data, chamberMeta, availableChambers } = useData();
@@ -28,20 +34,15 @@ export default function AnalysisLayout() {
   const { chamber, setChamber, period, setPeriod, params } = useAppParams();
 
   const periods = useMemo(() => availablePeriods(data), [data]);
-
-  // Each period's analytics is its own resource, fetched when selected. The
-  // global -> year -> month fallback now lives in the hook, so it is resolved
-  // in exactly one place for every tab.
-  const { data: analytics, status: analyticsStatus, hasOwn } = useAnalytics(period);
+  const { status, section, global } = useAnalytics(period);
 
   const search = params.toString();
   const withParams = (to) => (search ? `${to}?${search}` : to);
 
   const context = {
     data,
-    analytics,
-    analyticsStatus,
-    hasPeriodAnalytics: hasOwn,
+    section,
+    globalAnalytics: global,
     clusters: data?.clusters ?? {},
     period,
     mode,
@@ -54,6 +55,13 @@ export default function AnalysisLayout() {
         <div>
           <p className="text-label text-muted">ANALISI · {chamberMeta.full.toUpperCase()}</p>
           <h1 className="mt-1.5 text-display">Il discorso in aggregato</h1>
+          {data?.stats?.first_date ? (
+            <p className="mt-1.5 text-body text-secondary">
+              {data.stats.total_speeches.toLocaleString('it-IT')} interventi dal{' '}
+              {data.stats.first_date.split('-').reverse().join('/')} al{' '}
+              {data.stats.last_date.split('-').reverse().join('/')}
+            </p>
+          ) : null}
         </div>
         <PeriodControls
           chamber={chamber}
@@ -87,12 +95,22 @@ export default function AnalysisLayout() {
         ))}
       </nav>
 
-      <Outlet context={context} />
+      {/* Waiting is not "no data": the tabs used to render their empty state
+          while the analytics resource was still downloading. */}
+      {status === 'loading' ? (
+        <div className="grid gap-5 lg:grid-cols-2">
+          <SkeletonCard lines={6} />
+          <SkeletonCard lines={6} />
+        </div>
+      ) : status === 'error' ? (
+        <EmptyState
+          icon={AlertTriangle}
+          message="Non è stato possibile caricare le analisi per questo periodo."
+          hint="Ricarica la pagina; se il problema persiste i file dei dati potrebbero non essere stati generati."
+        />
+      ) : (
+        <Outlet context={context} />
+      )}
     </Page>
   );
-}
-
-/** Typed accessor for the shared analytics context. */
-export function useAnalysis() {
-  return useOutletContext();
 }

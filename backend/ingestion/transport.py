@@ -139,11 +139,15 @@ class BrowserTransport:
 
     name = 'browser'
 
-    def __init__(self, timeout: int = 60, wait_ms: int = 5000):
+    def __init__(self, timeout: int = 60, wait_ms: int = 25000, poll_ms: int = 1000):
         self.timeout = timeout
+        # Upper bound on waiting for the challenge to resolve; the page is
+        # polled and returned as soon as it is the real document.
         self.wait_ms = wait_ms
+        self.poll_ms = poll_ms
         self._playwright = None
         self._browser = None
+        self._context = None
 
     @staticmethod
     def is_available() -> bool:
@@ -161,19 +165,42 @@ class BrowserTransport:
 
         self._playwright = sync_playwright().start()
         self._browser = self._playwright.chromium.launch(headless=True)
+        # One context for the whole run: the token the challenge sets is a
+        # cookie, and a fresh context per page (what `browser.new_page` gives)
+        # threw it away, so every document had to solve the challenge again.
+        self._context = self._browser.new_context(user_agent=USER_AGENT)
         logger.info("Started headless browser for challenged hosts")
+
+    @staticmethod
+    def _content(page) -> Optional[str]:
+        """Page HTML, or None while the challenge is still reloading the page."""
+        from playwright.sync_api import Error as PlaywrightError
+
+        try:
+            return page.content()
+        except PlaywrightError:
+            return None
 
     def get(self, url: str) -> str:
         self._ensure_browser()
 
-        page = self._browser.new_page(user_agent=USER_AGENT)
+        page = self._context.new_page()
         try:
             page.goto(url, timeout=self.timeout * 1000, wait_until='domcontentloaded')
-            # The challenge resolves itself and reloads; give it a moment.
-            page.wait_for_timeout(self.wait_ms)
-            body = page.content()
+            # The challenge resolves itself and reloads: poll until the real
+            # document is there, rather than sleeping a fixed time that was
+            # sometimes too short.
+            waited = 0
+            body = self._content(page)
+            while (body is None or looks_like_challenge(200, body)) and waited < self.wait_ms:
+                page.wait_for_timeout(self.poll_ms)
+                waited += self.poll_ms
+                body = self._content(page)
         finally:
             page.close()
+
+        if body is None:
+            raise ChallengeBlocked(url, 200, "page never settled after the challenge")
 
         if looks_like_challenge(200, body):
             raise ChallengeBlocked(url, 200, "challenge survived browser transport")
@@ -181,6 +208,9 @@ class BrowserTransport:
         return body
 
     def close(self):
+        if self._context is not None:
+            self._context.close()
+            self._context = None
         if self._browser is not None:
             self._browser.close()
             self._browser = None

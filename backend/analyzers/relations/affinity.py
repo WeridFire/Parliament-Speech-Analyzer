@@ -1,12 +1,17 @@
 """
 Party Affinity Matrix - Semantic similarity between parties.
+
+Cosine similarity between party centroids in the centred embedding space; see
+`cohesion.py` for why the centring matters. Values now range over the full
+-1..1 scale instead of 0.81-0.99, so the heatmap can show differences.
 """
 import logging
+
 import numpy as np
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 
-from .cohesion import compute_party_centroids
+from .cohesion import MIN_PARTY_SPEECHES, compute_party_centroids
 
 logger = logging.getLogger(__name__)
 
@@ -17,39 +22,32 @@ def compute_party_affinity_matrix(
     party_col: str = 'group'
 ) -> dict:
     """
-    Compute affinity matrix between parties based on semantic similarity.
+    Returns:
+        {'parties': [...], 'matrix': [[...]], 'pairs': [{party1, party2, similarity}],
+         'range': [min, max]}   range of the off-diagonal values, for the colour scale
     """
-    centroids = compute_party_centroids(df, embeddings, party_col)
-    
+    centroids = compute_party_centroids(df, embeddings, party_col, min_speeches=MIN_PARTY_SPEECHES)
+
     if len(centroids) < 2:
-        return {'parties': [], 'matrix': [], 'pairs': []}
-    
-    parties = sorted([p for p in centroids.keys() if p != 'Unknown Group'])
+        return {'parties': [], 'matrix': [], 'pairs': [], 'range': [0, 0]}
+
+    parties = sorted(centroids)
+    sim_matrix = cosine_similarity(np.array([centroids[p] for p in parties]))
     n_parties = len(parties)
-    
-    # Build centroid matrix
-    centroid_matrix = np.array([centroids[p] for p in parties])
-    
-    # Compute similarity matrix
-    sim_matrix = cosine_similarity(centroid_matrix)
-    
-    # Build pairs list (sorted by similarity)
-    pairs = []
-    for i in range(n_parties):
-        for j in range(i + 1, n_parties):
-            pairs.append({
-                'party1': parties[i],
-                'party2': parties[j],
-                'similarity': round(float(sim_matrix[i, j]), 4)
-            })
-    
+
+    pairs = [
+        {'party1': parties[i], 'party2': parties[j], 'similarity': round(float(sim_matrix[i, j]), 4)}
+        for i in range(n_parties)
+        for j in range(i + 1, n_parties)
+    ]
     pairs.sort(key=lambda x: -x['similarity'])
-    
-    result = {
+
+    off_diagonal = sim_matrix[~np.eye(n_parties, dtype=bool)]
+
+    logger.info("Computed affinity matrix for %d parties", n_parties)
+    return {
         'parties': parties,
-        'matrix': [[round(float(sim_matrix[i, j]), 4) for j in range(n_parties)] for i in range(n_parties)],
-        'pairs': pairs
+        'matrix': [[round(float(v), 4) for v in row] for row in sim_matrix],
+        'pairs': pairs,
+        'range': [round(float(off_diagonal.min()), 4), round(float(off_diagonal.max()), 4)],
     }
-    
-    logger.info("Computed affinity matrix for %d parties", len(parties))
-    return result

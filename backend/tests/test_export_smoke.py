@@ -1,14 +1,15 @@
 """
 End-to-end smoke test for the export pipeline.
 
-Runs `export_data.main()` over mock speeches with the network and the embedding
-model stubbed out, then asserts the payload it produces is structurally sound and
-that no analyzer failed. The unit tests cover analyzers in isolation; this covers
-the wiring between them - which is where the alignment and orchestration bugs
-live.
+Runs `export_data.main()` over mock speeches with the network, the embedding
+model and the lemmatiser stubbed out, then asserts the payload it produces is
+structurally sound and that no analyzer failed. The unit tests cover analyzers
+in isolation; this covers the wiring between them - which is where the
+alignment and orchestration bugs live.
 
-Deliberately single-source: `main()` only reaches for ProcessPoolExecutor when a
-run spans several chambers, and patches do not survive into worker processes.
+The mock groups use real register labels, so the run also exercises group
+normalisation (including the Forza Italia label that the old chair filter
+mistook for the chair) and the stage directions behind the reactions analysis.
 """
 
 import json
@@ -21,8 +22,15 @@ from backend import export_data
 from backend.config import TOPIC_CLUSTERS
 
 
-N_SPEECHES = 60
+# Two years of 60 speeches each: enough for the per-period analyzers with the
+# lowest sample requirement to run on a single year.
+N_SPEECHES = 120
 EMBEDDING_DIM = 16
+
+GROUPS = [
+    'FORZA ITALIA - BERLUSCONI PRESIDENTE - PPE',
+    'PARTITO DEMOCRATICO - ITALIA DEMOCRATICA E PROGRESSISTA',
+]
 
 # Long enough to clear MIN_WORDS (30) after cleaning strips procedural phrases.
 BODY_SENTENCES = [
@@ -34,7 +42,7 @@ BODY_SENTENCES = [
     "e infermieristico in tutte le regioni italiane senza eccezioni.",
     "La transizione ecologica non puo essere rinviata ulteriormente perche il cambiamento "
     "climatico produce effetti concreti sul territorio, sulle imprese agricole e sulla "
-    "sicurezza delle comunita che vivono nelle aree piu fragili del paese.",
+    "sicurezza delle comunita che vivono nelle aree piu fragili del paese, lo dice Meloni.",
 ]
 
 
@@ -45,12 +53,14 @@ def mock_raw_speeches() -> pd.DataFrame:
     for i in range(N_SPEECHES):
         year = 2023 if i < N_SPEECHES // 2 else 2024
         month = (i % 6) + 1
+        label = GROUPS[i % 2]
         rows.append({
             'date': f'{year}-{month:02d}-{(i % 27) + 1:02d}',
-            'deputy': f'ROSSI Mario_{i % 6} [Partito {"A" if i % 2 == 0 else "B"}]',
+            'deputy': f'ROSSI Mario_{i % 6} [{label}]',
             'speaker_base': f'ROSSI Mario_{i % 6}',
-            'group': f'Partito {"A" if i % 2 == 0 else "B"}',
+            'group': label,
             'text': BODY_SENTENCES[i % len(BODY_SENTENCES)],
+            'notes': ["Applausi dei deputati del gruppo Fratelli d'Italia"] if i % 5 == 0 else [],
             'source': 'camera',
             'url': f'https://example.invalid/seduta/{i}',
             'role': '',
@@ -58,13 +68,6 @@ def mock_raw_speeches() -> pd.DataFrame:
             'profile_url': '',
         })
     return pd.DataFrame(rows)
-
-
-class StubSentenceTransformer:
-    """Stands in for the embedding model when topic descriptions are encoded."""
-
-    def encode(self, texts, **kwargs):
-        return _deterministic_embeddings(len(texts), offset=1000)
 
 
 def _deterministic_embeddings(n: int, offset: int = 0) -> np.ndarray:
@@ -83,26 +86,25 @@ def exported_payload(tmp_path_factory, mock_raw_speeches):
     test costs minutes. `pytest.MonkeyPatch` is used directly because the
     `monkeypatch` fixture is function-scoped.
     """
-    backend_dir = tmp_path_factory.mktemp('project') / 'backend'
-    backend_dir.mkdir()
+    data_dir = tmp_path_factory.mktemp('project') / 'data'
 
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(export_data, 'SCRIPT_DIR', backend_dir)
         mp.setattr(
             export_data, 'load_cached_speeches',
             lambda source, max_age_days=None: mock_raw_speeches.copy(),
         )
-        mp.setattr(export_data, 'load_cached_embeddings', lambda source, fingerprint: None)
-        mp.setattr(export_data, 'save_embeddings_cache', lambda embeddings, source, fingerprint: None)
-        mp.setattr(export_data, 'get_embedding_model', lambda *a, **k: StubSentenceTransformer())
         mp.setattr(
-            export_data, 'generate_embeddings',
+            export_data, 'embed_texts',
             lambda texts, model_name=None: _deterministic_embeddings(len(texts)),
         )
+        # Surface tokens instead of spaCy, and no lemma cache on disk.
+        mp.setattr(
+            export_data, 'lemmatize_corpus',
+            lambda texts: [' '.join(w for w in t.lower().split() if len(w) > 3) for t in texts],
+        )
 
-        export_data.main(source='camera')
+        export_data.main(source='camera', output_dir=data_dir)
 
-    data_dir = backend_dir.parent / 'frontend' / 'public' / 'data'
     manifest_path = data_dir / 'manifest.json'
     assert manifest_path.exists(), "pipeline produced no manifest"
 
@@ -151,8 +153,7 @@ class TestPayloadStructure:
 
     def test_core_holds_what_first_paint_needs(self, exported_payload):
         assert set(exported_payload['core']) >= {
-            'deputies', 'deputies_by_period', 'clusters',
-            'rebels', 'all_divergence_scores', 'stats',
+            'deputies', 'deputies_by_period', 'clusters', 'parties', 'stats',
         }
 
     def test_speeches_are_a_separate_resource(self, exported_payload):
@@ -176,10 +177,13 @@ class TestPayloadStructure:
             assert speech['text']
         assert any(s['text'] != s['text'].lower() for s in exported_payload['speeches'])
 
-    def test_topic_scores_match_configured_topics(self, exported_payload):
-        expected = len(TOPIC_CLUSTERS)
+    def test_undisplayed_per_speech_fields_are_not_shipped(self, exported_payload):
         for speech in exported_payload['speeches']:
-            assert len(speech['topic_scores']) == expected
+            assert not {'topic_scores', 'rhetoric_style', 'divergence_pct'} & set(speech)
+
+    def test_clusters_are_configured_topics(self, exported_payload):
+        configured = set(TOPIC_CLUSTERS) | {-1}
+        assert {int(c) for c in exported_payload['core']['clusters']} <= configured
 
     def test_assignment_confidence_is_exported(self, exported_payload):
         for speech in exported_payload['speeches']:
@@ -191,10 +195,13 @@ class TestPayloadStructure:
         assert deputies
         assert sum(d['n_speeches'] for d in deputies) <= N_SPEECHES
 
-    def test_divergence_replaces_rebel_naming(self, exported_payload):
-        for deputy in exported_payload['core']['deputies']:
-            assert 'divergence_pct' in deputy
-            assert 'rebel_pct' not in deputy
+    def test_groups_are_normalised_and_forza_italia_survives(self, exported_payload):
+        parties = {p['name']: p for p in exported_payload['core']['parties']}
+
+        assert set(parties) == {'Forza Italia', 'Partito Democratico'}
+        assert parties['Forza Italia']['bloc'] == 'maggioranza'
+        assert parties['Partito Democratico']['bloc'] == 'opposizione'
+        assert all(s['party'] in parties for s in exported_payload['speeches'])
 
 
 # =============================================================================
@@ -218,9 +225,17 @@ class TestAnalytics:
 
     def test_expected_analyzers_ran(self, exported_payload):
         assert set(exported_payload['analytics']['global']) >= {
-            'identity', 'sentiment', 'temporal', 'relations',
-            'speaker', 'rhetoric', 'factions', 'alliances', 'topics',
+            'identity', 'topics', 'blocs', 'relations', 'reactions',
+            'mentions', 'temporal', 'speaker', 'language',
         }
+
+    def test_stage_directions_reach_the_reactions(self, exported_payload):
+        reactions = exported_payload['analytics']['global']['reactions']
+        assert reactions['coverage']['applause_attributed'] > 0
+
+    def test_mentions_are_found(self, exported_payload):
+        figures = exported_payload['analytics']['global']['mentions']['figures']
+        assert any(f['id'] == 'meloni' for f in figures)
 
     def test_period_buckets_exist(self, exported_payload):
         analytics = exported_payload['analytics']
@@ -234,7 +249,7 @@ class TestAnalytics:
         """
         for period, block in exported_payload['analytics']['by_year'].items():
             assert 'temporal' not in block, f"{period}: temporal is a global-only metric"
-            assert 'topics' not in block, f"{period}: cluster labels are corpus-level"
+            assert 'relations' not in block, f"{period}: too few speeches for party affinity"
 
     def test_period_analytics_have_no_errors(self, exported_payload):
         for period, block in exported_payload['analytics']['by_year'].items():

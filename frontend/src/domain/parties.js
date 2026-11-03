@@ -37,16 +37,16 @@ const SHAPES = {
 };
 
 /**
- * coalition follows backend/config/party_normalization.py
- * (RIGHT_PARTIES / LEFT_PARTIES / CENTER_PARTIES, with Governo classified
- * as right per CLASSIFY_GOVERNO_AS_RIGHT = True).
+ * `bloc` mirrors backend/config/party_normalization.py: the groups supporting
+ * the government (and the government itself) are 'maggioranza', the rest of
+ * the chamber 'opposizione', mixed and autonomist groups 'altro'.
  */
 const REGISTRY = [
   {
     id: 'fdi',
     name: "Fratelli d'Italia",
     short: 'FdI',
-    coalition: 'right',
+    bloc: 'maggioranza',
     dot: { light: '#1b4f9c', dark: '#5b8fd6' },
     shape: SHAPES.fdi,
     aliases: ["FRATELLI D'ITALIA", "Fratelli d'Italia", 'FdI'],
@@ -55,7 +55,7 @@ const REGISTRY = [
     id: 'm5s',
     name: 'MoVimento 5 Stelle',
     short: 'M5S',
-    coalition: 'left',
+    bloc: 'opposizione',
     dot: { light: '#a88400', dark: '#f2ce3c' },
     shape: SHAPES.m5s,
     aliases: ['MOVIMENTO 5 STELLE', 'MoVimento 5 Stelle', 'Movimento 5 Stelle', 'M5S'],
@@ -64,7 +64,7 @@ const REGISTRY = [
     id: 'fi',
     name: 'Forza Italia',
     short: 'FI',
-    coalition: 'right',
+    bloc: 'maggioranza',
     dot: { light: '#2e86d9', dark: '#6fb3ed' },
     shape: SHAPES.fi,
     aliases: [
@@ -78,7 +78,7 @@ const REGISTRY = [
     id: 'lega',
     name: 'Lega',
     short: 'Lega',
-    coalition: 'right',
+    bloc: 'maggioranza',
     dot: { light: '#2e7d32', dark: '#6bb56f' },
     shape: SHAPES.lega,
     aliases: ['LEGA - SALVINI PREMIER', 'Lega - Salvini Premier', 'LEGA', 'Lega', "LSP-PSd'Az"],
@@ -87,7 +87,7 @@ const REGISTRY = [
     id: 'pd',
     name: 'Partito Democratico',
     short: 'PD',
-    coalition: 'left',
+    bloc: 'opposizione',
     dot: { light: '#c62828', dark: '#e8706e' },
     shape: SHAPES.pd,
     aliases: [
@@ -102,7 +102,7 @@ const REGISTRY = [
     id: 'avs',
     name: 'Alleanza Verdi e Sinistra',
     short: 'AVS',
-    coalition: 'left',
+    bloc: 'opposizione',
     dot: { light: '#557b2f', dark: '#9ccc65' },
     shape: SHAPES.avs,
     aliases: ['ALLEANZA VERDI E SINISTRA', 'Alleanza Verdi e Sinistra', 'AVS'],
@@ -111,7 +111,7 @@ const REGISTRY = [
     id: 'azione',
     name: 'Azione — Renew Europe',
     short: 'Az-RE',
-    coalition: 'center',
+    bloc: 'opposizione',
     dot: { light: '#7b1fa2', dark: '#ba7bd4' },
     shape: SHAPES.azione,
     aliases: [
@@ -127,7 +127,7 @@ const REGISTRY = [
     id: 'iv',
     name: 'Italia Viva',
     short: 'IV',
-    coalition: 'center',
+    bloc: 'opposizione',
     dot: { light: '#d84315', dark: '#ff8a65' },
     shape: SHAPES.iv,
     aliases: ['ITALIA VIVA', 'Italia Viva', 'IV-C-RE', 'IV'],
@@ -136,7 +136,7 @@ const REGISTRY = [
     id: 'nm',
     name: 'Noi Moderati',
     short: 'NM',
-    coalition: 'right',
+    bloc: 'maggioranza',
     dot: { light: '#00695f', dark: '#4dd0c1' },
     shape: SHAPES.nm,
     aliases: [
@@ -152,16 +152,16 @@ const REGISTRY = [
     id: 'minling',
     name: 'Misto — Minoranze Linguistiche',
     short: 'MinL',
-    coalition: 'center',
+    bloc: 'altro',
     dot: { light: '#5c6b73', dark: '#94a7b0' },
     shape: SHAPES.minling,
-    aliases: ['MISTO-MINORANZE LINGUISTICHE', 'Misto-Minoranze Linguistiche'],
+    aliases: ['MISTO-MINORANZE LINGUISTICHE', 'Misto-Minoranze Linguistiche', 'Minoranze Linguistiche'],
   },
   {
     id: 'piu_europa',
     name: 'Misto — +Europa',
     short: '+Eu',
-    coalition: 'left', // backend party_normalization.py lists +Europa under LEFT_PARTIES
+    bloc: 'opposizione',
     dot: { light: '#ad1457', dark: '#f06292' },
     shape: SHAPES.piu_europa,
     aliases: ['MISTO-+Europa', 'Misto-+Europa', '+Europa'],
@@ -170,18 +170,16 @@ const REGISTRY = [
     id: 'aut',
     name: 'Per le Autonomie (SVP-PATT, Cb)',
     short: 'Aut',
-    // Autonomist crossbench: the backend classifies it as neither left, right
-    // nor center, so it is not forced into one here either.
-    coalition: 'none',
+    bloc: 'altro',
     dot: { light: '#00796b', dark: '#4db6ac' },
     shape: SHAPES.aut,
-    aliases: ['Aut (SVP-PATT, Cb)', 'AUT (SVP-PATT, CB)', 'Aut', 'SVP-PATT'],
+    aliases: ['Aut (SVP-PATT, Cb)', 'AUT (SVP-PATT, CB)', 'Aut', 'SVP-PATT', 'Per le Autonomie'],
   },
   {
     id: 'misto',
     name: 'Gruppo Misto',
     short: 'Misto',
-    coalition: 'center',
+    bloc: 'altro',
     dot: { light: '#6e7278', dark: '#9aa0a6' },
     shape: SHAPES.misto,
     aliases: ['MISTO', 'Misto'],
@@ -190,7 +188,7 @@ const REGISTRY = [
     id: 'governo',
     name: 'Governo',
     short: 'Gov',
-    coalition: 'right',
+    bloc: 'maggioranza',
     dot: { light: '#455a64', dark: '#90a4ae' },
     shape: SHAPES.governo,
     aliases: ['GOVERNO', 'Governo'],
@@ -199,7 +197,7 @@ const REGISTRY = [
     id: 'presidenza',
     name: 'Presidenza',
     short: 'Pres',
-    coalition: 'none',
+    bloc: 'altro',
     dot: { light: '#6d4c41', dark: '#bcaaa4' },
     shape: SHAPES.presidenza,
     aliases: ['PRESIDENZA', 'Presidenza'],
@@ -210,7 +208,7 @@ const UNKNOWN = {
   id: 'unknown',
   name: 'Gruppo non identificato',
   short: '—',
-  coalition: 'none',
+  bloc: 'altro',
   dot: { light: '#8a8d93', dark: '#85888e' },
   shape: SHAPES.unknown,
   aliases: ['Unknown Group', 'UNKNOWN GROUP'],
@@ -299,20 +297,20 @@ export function resolveParty(raw) {
 export const partyName = (raw) => resolveParty(raw).name;
 export const partyShort = (raw) => resolveParty(raw).short;
 export const partyShape = (raw) => resolveParty(raw).shape;
-export const partyCoalition = (raw) => resolveParty(raw).coalition;
+export const partyBloc = (raw) => resolveParty(raw).bloc;
 
 /** Identity dot colour for the given mode. Never use this for a chart series. */
 export const partyDot = (raw, mode = 'light') => resolveParty(raw).dot[mode];
 
-/** Stable display order: coalition, then registry order. */
-const COALITION_ORDER = { right: 0, center: 1, left: 2, none: 3 };
+/** Stable display order: majority, opposition, the rest; then by name. */
+const BLOC_ORDER = { maggioranza: 0, opposizione: 1, altro: 2 };
 export function sortParties(rawNames) {
   return [...rawNames].sort((a, b) => {
     const pa = resolveParty(a);
     const pb = resolveParty(b);
-    const ca = COALITION_ORDER[pa.coalition] ?? 3;
-    const cb = COALITION_ORDER[pb.coalition] ?? 3;
-    if (ca !== cb) return ca - cb;
+    const ba = BLOC_ORDER[pa.bloc] ?? 2;
+    const bb = BLOC_ORDER[pb.bloc] ?? 2;
+    if (ba !== bb) return ba - bb;
     return pa.name.localeCompare(pb.name, 'it');
   });
 }

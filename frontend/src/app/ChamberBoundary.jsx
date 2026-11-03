@@ -1,5 +1,6 @@
 import { AlertTriangle } from 'lucide-react';
-import { DataProvider, useData } from '../data/DataProvider';
+import { DataProvider } from '../data/DataProvider';
+import { useData } from '../data/context';
 import { useAppParams } from './useAppParams';
 import { LoadingScreen } from '../ui';
 import { Page } from '../layout/AppShell';
@@ -48,11 +49,12 @@ function DataGate({ children }) {
 }
 
 /**
- * The Camera dataset is ~45 MB in one file, so the wait is genuinely long.
- * Reporting megabytes is more honest than an indefinite spinner.
+ * First paint needs only the chamber's core resource (a few hundred KB);
+ * reporting progress is still more honest than an indefinite spinner on a slow
+ * connection.
  */
 function formatProgress({ loaded, total }) {
-  if (!loaded) return 'Il dataset completo pesa alcune decine di megabyte.';
+  if (!loaded) return 'Caricamento dei dati essenziali…';
   const mb = (n) => (n / 1_048_576).toFixed(1);
   return total
     ? `${mb(loaded)} di ${mb(total)} MB`

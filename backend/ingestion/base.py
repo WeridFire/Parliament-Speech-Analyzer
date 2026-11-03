@@ -88,6 +88,9 @@ class Speech:
             'speaker_base': self.speaker,
             'group': group,
             'text': self.text,
+            # Stage directions - "Applausi dei deputati del gruppo X" - are the
+            # only record of how the other groups reacted to the speech.
+            'notes': list(self.notes),
             'source': chamber,
             'url': self.url,
             'session_id': self.session_id,

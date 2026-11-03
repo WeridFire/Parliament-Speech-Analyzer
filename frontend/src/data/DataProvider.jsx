@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CHAMBER_LABELS, DataContext } from './context';
 
 /**
  * Loads the chunked dataset.
@@ -8,29 +9,20 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
  * It now emits a manifest plus separate resources, so:
  *
  *  1. First paint needs only `manifest.json` + that chamber's `core.json`
- *     (deputies, clusters, stats): a couple of MB instead of forty-five.
+ *     (deputies, clusters, stats): a few hundred KB instead of forty-five MB.
  *  2. Speeches and each analytics period are fetched the first time a view
  *     actually asks for them, through `useSpeeches()` / `useAnalytics()`.
  *  3. Every resource is cached by path for the session, so switching chamber or
  *     period never refetches something already held.
  */
 
-const DataContext = createContext(null);
-
 const DATA_ROOT = 'data';
 
 /** Resolve against Vite's base so the gh-pages sub-path keeps working. */
 const assetUrl = (path) => `${import.meta.env.BASE_URL}${DATA_ROOT}/${path}`;
 
-const CHAMBER_LABELS = {
-  camera: { id: 'camera', label: 'Camera', full: 'Camera dei Deputati' },
-  senato: { id: 'senato', label: 'Senato', full: 'Senato della Repubblica' },
-};
-
 /** The manifest keys chambers by file stem; routes still say 'senate'. */
 const CHAMBER_ALIASES = { senate: 'senato', senato: 'senato', camera: 'camera' };
-
-export const CHAMBER_LIST = Object.values(CHAMBER_LABELS);
 
 export function DataProvider({ chamber = 'camera', children }) {
   const chamberKey = CHAMBER_ALIASES[chamber] ?? chamber;
@@ -134,12 +126,6 @@ export function DataProvider({ chamber = 'camera', children }) {
   );
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
-}
-
-export function useData() {
-  const ctx = useContext(DataContext);
-  if (!ctx) throw new Error('useData must be used inside <DataProvider>');
-  return ctx;
 }
 
 /**

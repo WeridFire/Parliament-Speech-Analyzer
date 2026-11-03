@@ -70,7 +70,9 @@ export function buildLayout(mode = 'light', overrides) {
       yaxis: { ...axis },
       colorway: undefined, // series colours are assigned explicitly, never auto
       dragmode: 'pan',
-      transition: { duration: 0 },
+      // No `transition` key, not even a zero-length one: its presence sends
+      // Plotly.react down the animation path, which polar traces do not
+      // support, so the radar ignored new data until its axis range changed.
     },
     overrides,
   );

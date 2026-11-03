@@ -1,113 +1,85 @@
 """
-Generalism Index - Compute entropy-based specialization score.
+Generalism Index - how widely a speaker or group spreads across the topics.
 
-Shannon entropy of topic distribution, normalized to 0-100:
-- 100 = perfectly generalist (equal distribution across all topics)
-- 0 = monotematic (speaks only about one topic)
+Shannon entropy of the topic distribution, normalised to 0-100:
+- 100 = speaks equally about every topic
+- 0   = speaks about a single topic
+
+Two corrections over the previous version. The denominator is the number of
+configured topics, not the number that happened to appear in the slice (a month
+with five topics present used to rescale everyone). And entropy estimated from a
+handful of speeches is biased low - two speeches can cover at most two topics -
+so speakers need a real sample before they are scored at all.
 """
 
 import logging
+
 import numpy as np
 import pandas as pd
 
+from backend.analyzers.common import classified, topic_ids
+
 logger = logging.getLogger(__name__)
 
+MIN_SPEAKER_SPEECHES = 20
+MIN_PARTY_SPEECHES = 30
 
-def compute_generalism_index(
-    df: pd.DataFrame,
-    cluster_col: str = 'cluster',
-    speaker_col: str = 'deputy',
-    party_col: str = 'group'
-) -> dict:
-    """
-    Compute generalism index based on topic entropy.
-    
-    Shannon entropy of topic distribution, normalized to 0-100:
-    - 100 = perfectly generalist (equal distribution across all topics)
-    - 0 = monotematic (speaks only about one topic)
-    
-    Args:
-        df: DataFrame with speeches
-        cluster_col: Column with cluster assignments
-        speaker_col: Column with speaker names
-        party_col: Column with party names
-    
-    Returns:
-        {
-            'by_deputy': {deputy: {score, dominant_topic, n_topics}, ...},
-            'by_party': {party: {score, dominant_topic, n_topics}, ...}
-        }
-    """
-    result = {
-        'by_deputy': {},
-        'by_party': {}
-    }
-    
-    n_clusters = df[cluster_col].nunique()
-    max_entropy = np.log2(n_clusters) if n_clusters > 1 else 1
-    
-    # Per-deputy
-    for speaker in df[speaker_col].unique():
-        speaker_df = df[df[speaker_col] == speaker]
-        if len(speaker_df) < 2:
-            continue
-            
-        topic_counts = speaker_df[cluster_col].value_counts()
-        proportions = topic_counts.values / topic_counts.sum()
-        
-        # Shannon entropy
-        entropy = -np.sum(proportions * np.log2(proportions + 1e-10))
-        normalized_score = (entropy / max_entropy) * 100 if max_entropy > 0 else 0
-        
-        dominant_topic = int(topic_counts.idxmax())
-        n_topics_used = len(topic_counts)
-        
-        result['by_deputy'][speaker] = {
-            'score': round(float(normalized_score), 1),
-            'dominant_topic': dominant_topic,
-            'n_topics': n_topics_used,
-            'n_speeches': len(speaker_df),
-            'classification': _classify_generalism(normalized_score)
-        }
-    
-    # Per-party
-    for party in df[party_col].unique():
-        if party == 'Unknown Group':
-            continue
-            
-        party_df = df[df[party_col] == party]
-        if len(party_df) < 2:
-            continue
-            
-        topic_counts = party_df[cluster_col].value_counts()
-        proportions = topic_counts.values / topic_counts.sum()
-        
-        entropy = -np.sum(proportions * np.log2(proportions + 1e-10))
-        normalized_score = (entropy / max_entropy) * 100 if max_entropy > 0 else 0
-        
-        dominant_topic = int(topic_counts.idxmax())
-        
-        result['by_party'][party] = {
-            'score': round(float(normalized_score), 1),
-            'dominant_topic': dominant_topic,
-            'n_topics': len(topic_counts),
-            'n_speeches': len(party_df),
-            'classification': _classify_generalism(normalized_score)
-        }
-    
-    logger.info(
-        "Computed generalism index for %d deputies and %d parties",
-        len(result['by_deputy']), len(result['by_party'])
-    )
-    
-    return result
+
+def _entropy_score(clusters: pd.Series, n_topics: int) -> float:
+    counts = clusters.value_counts().to_numpy(dtype=float)
+    proportions = counts / counts.sum()
+    entropy = -np.sum(proportions * np.log2(proportions))
+    max_entropy = np.log2(n_topics) if n_topics > 1 else 1.0
+    return float(entropy / max_entropy * 100)
 
 
 def _classify_generalism(score: float) -> str:
     """Classify generalism score into category."""
     if score > 70:
         return 'generalista'
-    elif score < 30:
+    if score < 40:
         return 'specialista'
-    else:
-        return 'bilanciato'
+    return 'bilanciato'
+
+
+def compute_generalism_index(
+    df: pd.DataFrame,
+    cluster_labels: dict,
+    cluster_col: str = 'cluster',
+    speaker_col: str = 'deputy',
+    party_col: str = 'group',
+) -> dict:
+    """
+    Returns:
+        {
+            'by_deputy': {speaker: {score, dominant_topic, n_topics, n_speeches, classification, party}},
+            'by_party': {party: {score, dominant_topic, n_topics, n_speeches, classification}}
+        }
+    """
+    n_topics = len(topic_ids(cluster_labels))
+    rows = classified(df, cluster_col)
+    result = {'by_deputy': {}, 'by_party': {}}
+
+    def describe(group: pd.DataFrame) -> dict:
+        score = _entropy_score(group[cluster_col], n_topics)
+        return {
+            'score': round(score, 1),
+            'dominant_topic': int(group[cluster_col].value_counts().idxmax()),
+            'n_topics': int(group[cluster_col].nunique()),
+            'n_speeches': int(len(group)),
+            'classification': _classify_generalism(score),
+        }
+
+    for speaker, group in rows.groupby(speaker_col):
+        if len(group) >= MIN_SPEAKER_SPEECHES:
+            result['by_deputy'][speaker] = {**describe(group), 'party': group[party_col].iloc[0]}
+
+    for party, group in rows.groupby(party_col):
+        if len(group) >= MIN_PARTY_SPEECHES:
+            result['by_party'][party] = describe(group)
+
+    logger.info(
+        "Computed generalism index for %d speakers and %d parties",
+        len(result['by_deputy']), len(result['by_party']),
+    )
+    return result

@@ -13,11 +13,9 @@ from .cache import (
     save_embeddings_cache
 )
 
-from .clustering import (
-    assign_topics_by_semantics,
-    compute_divergence_scores,
-    compute_rebel_scores,
-)
+from .clustering import assign_topics_by_semantics, topic_descriptions
+
+from .preprocess import prepare_speeches
 
 from .aggregation import (
     compute_deputies_data,

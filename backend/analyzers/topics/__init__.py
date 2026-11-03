@@ -1,15 +1,15 @@
 """
-Topics Analyzer Package - Cluster labeling and topic extraction.
+Topics Analyzer Package - Who carries each topic.
+
+Provides:
+- per topic: its de-facto spokespeople, the groups that over- and under-invest
+  in it, and the words that characterise it
 """
 from .analyzer import TopicsAnalyzer
-from .extraction import extract_cluster_topics, tokenize, tokenize_batch
-from .labeling import label_cluster, get_cluster_labels
+from .owners import compute_topic_owners, cluster_keywords
 
 __all__ = [
     'TopicsAnalyzer',
-    'extract_cluster_topics',
-    'tokenize',
-    'tokenize_batch',
-    'label_cluster',
-    'get_cluster_labels',
+    'compute_topic_owners',
+    'cluster_keywords',
 ]

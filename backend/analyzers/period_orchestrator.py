@@ -33,6 +33,8 @@ def compute_analytics_by_period(
     source: str = 'default',
     date_col: str = 'date',
     compute_by_period: bool = True,
+    terms=None,
+    vocabulary: Optional[np.ndarray] = None,
 ) -> tuple[dict, 'AnalyticsRunReport']:
     """
     Compute analytics for global, by_year, and by_month periods.
@@ -45,6 +47,8 @@ def compute_analytics_by_period(
         source: Data source name
         date_col: Column containing dates
         compute_by_period: If False, only compute global analytics (faster)
+        terms: Sparse speech x term counts aligned with df (keyword analyses)
+        vocabulary: Term for each column of `terms`
 
     Returns:
         A pair of (analytics, report):
@@ -60,7 +64,7 @@ def compute_analytics_by_period(
     """
     logger.info("Computing analytics by period...")
 
-    dataset = SpeechDataset(df=df, embeddings=embeddings)
+    dataset = SpeechDataset(df=df, embeddings=embeddings, terms=terms)
     report = AnalyticsRunReport()
 
     def run_for(subset: SpeechDataset, granularity: str, period: str) -> dict:
@@ -71,6 +75,8 @@ def compute_analytics_by_period(
             cluster_centroids=cluster_centroids,
             source=source,
             granularity=granularity,
+            terms=subset.terms,
+            vocabulary=vocabulary,
         )
         results = orchestrator.run_all()
         report.record(period, orchestrator)

@@ -84,7 +84,7 @@ class TestGlobalOnlyMode:
         """When compute_by_period=False, should return only global analytics."""
         # Setup mock
         mock_instance = MagicMock()
-        mock_instance.run_all.return_value = {'identity': {}, 'sentiment': {}}
+        mock_instance.run_all.return_value = {'identity': {}, 'language': {}}
         mock_orchestrator.return_value = mock_instance
         
         result, report = compute_analytics_by_period(

@@ -11,3 +11,4 @@ export { Select, SegmentedControl } from './Select';
 export { Skeleton, SkeletonCard, LoadingScreen } from './Skeleton';
 export { StatTile, StatRow } from './StatTile';
 export { Table } from './Table';
+export { ScopeNote } from './ScopeNote';

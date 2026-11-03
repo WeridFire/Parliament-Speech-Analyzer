@@ -12,28 +12,26 @@ from .settings import *
 from .stopwords import STOP_WORDS
 from .topic_clusters import TOPIC_CLUSTERS
 from .party_normalization import (
-    PARTY_NORMALIZATION,
-    RIGHT_PARTIES,
-    LEFT_PARTIES,
-    CENTER_PARTIES,
-    CLASSIFY_GOVERNO_AS_RIGHT
+    ALTRO,
+    CANONICAL_PARTIES,
+    MAGGIORANZA,
+    NOTE_GROUP_RES,
+    OPPOSIZIONE,
+    PARTY_BLOC,
+    normalize_party,
+    party_bloc,
 )
 from .analysis_keywords import (
-    POPULIST_KEYWORDS,
-    ANTI_ESTABLISHMENT_KEYWORDS,
-    INSTITUTIONAL_KEYWORDS,
-    EMOTIONAL_KEYWORDS,
-    SOVEREIGNIST_KEYWORDS,
-    PROGRESSIVE_KEYWORDS,
-    CRISIS_KEYWORDS,
-    POSITIVE_SENTIMENT_KEYWORDS,
-    NEGATIVE_SENTIMENT_KEYWORDS,
     POLARIZATION_PRONOUNS,
     ADVERSATIVE_TERMS,
-    US_THEM_PATTERNS
+    US_THEM_PATTERNS,
+    SELF_REFERENCE_WORDS,
+    NEGATION_WORDS,
+    NUMERIC_PATTERNS,
 )
+from .figures import FIGURES, FIGURE_GROUP_LABELS
 
-# NOTE: roles.py is not imported here by default in the old config.py, 
-# but we can make it available if needed. 
+# NOTE: roles.py is not imported here by default in the old config.py,
+# but we can make it available if needed.
 # For now, code imports config_roles separately, so users should assume separate modules or import explicitly.
 # But since we're refactoring, let's keep it separate to avoid namespace pollution if not needed.

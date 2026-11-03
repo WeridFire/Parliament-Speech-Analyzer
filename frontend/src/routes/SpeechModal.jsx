@@ -44,6 +44,14 @@ export function SpeechModal({ speech, clusters, onClose }) {
       <div className="flex flex-wrap items-center gap-2">
         <PartyChip party={speech.party} mode={mode} short={false} size="sm" />
         {topic ? <span className="text-label text-muted">{topic.toUpperCase()}</span> : null}
+        {typeof speech.cluster_conf === 'number' && speech.cluster >= 0 ? (
+          <span
+            className="text-label text-muted"
+            title="Distanza fra il tema assegnato e il secondo più vicino"
+          >
+            · ASSEGNAZIONE {speech.cluster_conf >= 0.03 ? 'NETTA' : 'INCERTA'}
+          </span>
+        ) : null}
       </div>
 
       <blockquote className="mt-5 border-l-2 border-rule pl-4 font-serif text-[1.0625rem] leading-[1.7] text-ink">

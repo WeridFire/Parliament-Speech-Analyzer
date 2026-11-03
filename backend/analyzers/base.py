@@ -81,6 +81,8 @@ class BaseAnalyzer(ABC):
         cluster_labels: Optional[dict] = None,
         cluster_centroids: Optional[np.ndarray] = None,
         config: Optional[dict] = None,
+        terms=None,
+        vocabulary: Optional[np.ndarray] = None,
         # Common column names
         text_col: str = 'cleaned_text',
         speaker_col: str = 'deputy',
@@ -97,6 +99,8 @@ class BaseAnalyzer(ABC):
             cluster_labels: Dict mapping cluster_id -> label string
             cluster_centroids: Array of cluster centroid vectors
             config: Optional configuration dict (from YAML)
+            terms: Sparse speech x term counts, row-aligned with df
+            vocabulary: Term for each column of `terms`
             text_col: Column name for cleaned text
             speaker_col: Column name for speaker names
             party_col: Column name for party names
@@ -108,6 +112,8 @@ class BaseAnalyzer(ABC):
         self.cluster_labels = cluster_labels or {}
         self.cluster_centroids = cluster_centroids
         self.config = config or {}
+        self.terms = terms
+        self.vocabulary = vocabulary
         
         # Column names
         self.text_col = text_col
@@ -173,7 +179,7 @@ class BaseAnalyzer(ABC):
         """
         Return list of required data for this analyzer.
         
-        Possible values: 'embeddings', 'cluster_labels', 'cluster_centroids'
+        Possible values: 'embeddings', 'cluster_labels', 'cluster_centroids', 'terms'
         
         Returns:
             List of dependency names.
@@ -213,6 +219,8 @@ class BaseAnalyzer(ABC):
                 raise ValueError(f"{self.name} requires cluster_labels but none provided")
             elif dep == 'cluster_centroids' and self.cluster_centroids is None:
                 raise ValueError(f"{self.name} requires cluster_centroids but none provided")
+            elif dep == 'terms' and self.terms is None:
+                raise ValueError(f"{self.name} requires a term matrix but none provided")
         
         return True
     

@@ -287,3 +287,114 @@ def save_embeddings_cache(
     key = embeddings_key(source, fingerprint)
     cache.save_array(key, embeddings)
     cache.prune('embeddings', source, keep=2, protect=key.stem)
+
+
+# =============================================================================
+# PER-TEXT STORES
+# =============================================================================
+
+def text_digest(text: str) -> str:
+    """Stable id for one text's content."""
+    import hashlib
+
+    return hashlib.sha1(str(text).encode('utf-8', errors='replace')).hexdigest()[:20]
+
+
+class EmbeddingStore:
+    """
+    Embeddings cached per text rather than per corpus.
+
+    The corpus-fingerprint cache above is all-or-nothing: one new sitting, or a
+    filter change that keeps a few hundred more speeches, changes the
+    fingerprint and every vector is recomputed. Here each text is looked up by
+    its own digest and only texts never seen before are encoded. The model name
+    is part of the key, so vectors from different models never mix.
+    """
+
+    def __init__(self, model_name: str, cache: Optional[ArtifactCache] = None):
+        self.cache = cache or _default_cache
+        slug = ''.join(c if c.isalnum() else '-' for c in model_name.split('/')[-1]).lower()
+        self.key = CacheKey(kind='embstore', source=slug)
+
+    def clear(self):
+        """Forget every stored vector (for --reembed)."""
+        for ext in ('.json', '.npy'):
+            path = self.cache.path(self.key, ext)
+            if path.exists():
+                path.unlink()
+
+    def _load(self) -> tuple[list[str], Optional[np.ndarray]]:
+        index = self.cache.load_json(self.key) or []
+        vectors = self.cache.load_array(self.key)
+        if vectors is None or len(vectors) != len(index):
+            return [], None
+        return index, vectors
+
+    def add(self, texts: list[str], vectors: np.ndarray):
+        """Seed the store with vectors computed elsewhere."""
+        index, stored = self._load()
+        known = set(index)
+        new = [(text_digest(t), v) for t, v in zip(texts, vectors) if text_digest(t) not in known]
+        if not new:
+            return
+        digests, rows = zip(*dict(new).items())
+        stored = np.vstack([stored, np.stack(rows)]) if stored is not None else np.stack(rows)
+        self.cache.save_array(self.key, stored.astype(np.float32))
+        self.cache.save_json(self.key, list(index) + list(digests), rows=len(stored))
+
+    def get(self, texts: list[str], encode) -> np.ndarray:
+        """
+        Vectors for `texts`, in order. `encode(list_of_texts) -> ndarray` is
+        called once, for the texts not stored yet.
+        """
+        index, stored = self._load()
+        position = {d: i for i, d in enumerate(index)}
+        digests = [text_digest(t) for t in texts]
+
+        missing = {}
+        for digest, text in zip(digests, texts):
+            if digest not in position and digest not in missing:
+                missing[digest] = text
+
+        logger.info(
+            "Embeddings: %d texts, %d cached, %d to encode",
+            len(texts), len(texts) - len(missing), len(missing),
+        )
+
+        if missing:
+            fresh = np.asarray(encode(list(missing.values())), dtype=np.float32)
+            stored = fresh if stored is None else np.vstack([stored, fresh])
+            index = list(index) + list(missing)
+            position = {d: i for i, d in enumerate(index)}
+            self.cache.save_array(self.key, stored)
+            self.cache.save_json(self.key, index, rows=len(index))
+
+        return stored[[position[d] for d in digests]]
+
+
+class LemmaStore:
+    """Lemmatised documents cached per text, like EmbeddingStore."""
+
+    def __init__(self, version: str, cache: Optional[ArtifactCache] = None):
+        self.cache = cache or _default_cache
+        self.key = CacheKey(kind='lemmas', source=version)
+
+    def get(self, texts: list[str], lemmatize) -> list[str]:
+        stored = self.cache.load_json(self.key) or {}
+        digests = [text_digest(t) for t in texts]
+
+        missing = {}
+        for digest, text in zip(digests, texts):
+            if digest not in stored and digest not in missing:
+                missing[digest] = text
+
+        logger.info(
+            "Lemmas: %d texts, %d cached, %d to lemmatise",
+            len(texts), len(texts) - len(missing), len(missing),
+        )
+
+        if missing:
+            stored.update(zip(missing, lemmatize(list(missing.values()))))
+            self.cache.save_json(self.key, stored, rows=len(stored))
+
+        return [stored[d] for d in digests]

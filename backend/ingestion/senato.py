@@ -11,6 +11,13 @@ requests with a CloudFront JavaScript challenge. The transport detects that and
 raises, so blocked sittings appear in the run report instead of quietly becoming
 an empty dataset - and if Playwright is installed, the browser transport can
 satisfy the challenge.
+
+The open-data sitting id is *not* the id of the stenographic document on
+senato.it: `sedutaassemblea/24374` is published as `show-doc?...&id=1491441`.
+Building the document URL from the open-data id returned a "service not
+available" page for every sitting, so the chamber silently produced nothing.
+Document ids are read from the yearly chronological listing and joined to the
+open-data sittings by sitting number.
 """
 
 import logging
@@ -32,11 +39,14 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.senato.it"
 DOCUMENT_URL = (
-    BASE_URL + "/show-doc?leg={leg}&tipodoc=Resaula&id={session_id}"
+    BASE_URL + "/show-doc?leg={leg}&tipodoc=Resaula&id={document_id}"
     "&idoggetto=0&part=doc_dc-ressten_rs"
 )
+LISTING_URL = BASE_URL + "/lavori/assemblea/resoconti-elenco-cronologico?year={year}"
 
 SESSION_URI_RE = re.compile(r"sedutaassemblea/(\d+)")
+DOCUMENT_ID_RE = re.compile(r"[?&]id=(\d+)")
+REPORT_NUMBER_RE = re.compile(r"Resoconto\s+(\d+)")
 
 MIN_SPEECH_CHARS = 30
 
@@ -72,26 +82,47 @@ class SenatoSource:
             since=since,
         ))
 
-        sessions = []
+        sittings = []
         for row in rows:
             match = SESSION_URI_RE.search(row['seduta'])
             parsed = parse_date(row['data'])
-            if not match or parsed is None:
+            number = row.get('numero', '')
+            if not match or parsed is None or not number.isdigit():
+                continue
+            sittings.append((match.group(1), parsed.date(), int(number)))
+
+        documents = self._document_ids({day.year for _, day, _ in sittings})
+
+        sessions, unpublished = [], 0
+        for session_id, day, number in sittings:
+            document_id = documents.get(number)
+            if document_id is None:
+                # Reports appear on senato.it some days after the sitting.
+                unpublished += 1
                 continue
 
-            session_id = match.group(1)
             sessions.append(SessionRef(
                 chamber=self.chamber,
                 session_id=session_id,
-                session_date=parsed.date(),
-                number=int(row['numero']) if row.get('numero', '').isdigit() else None,
-                url=DOCUMENT_URL.format(leg=self.legislature, session_id=session_id),
-                label=f"Seduta n. {row.get('numero', '?')}",
+                session_date=day,
+                number=number,
+                url=DOCUMENT_URL.format(leg=self.legislature, document_id=document_id),
+                label=f"Seduta n. {number}",
             ))
 
         sessions.sort(key=lambda s: s.session_date, reverse=True)
-        logger.info("Senato: %d assembly sittings since %s", len(sessions), since)
+        logger.info(
+            "Senato: %d assembly sittings since %s (%d without a published report yet)",
+            len(sittings), since, unpublished,
+        )
         return sessions
+
+    def _document_ids(self, years) -> dict[int, str]:
+        """Sitting number -> senato.it document id, from the yearly listings."""
+        documents: dict[int, str] = {}
+        for year in sorted(years):
+            documents.update(parse_report_listing(self.transport.get(LISTING_URL.format(year=year))))
+        return documents
 
     # -- fetching ------------------------------------------------------------
 
@@ -108,6 +139,25 @@ def _since_iso(months_back: int) -> str:
     from dateutil.relativedelta import relativedelta
 
     return (date.today() - relativedelta(months=months_back)).isoformat()
+
+
+def parse_report_listing(html: str) -> dict[int, str]:
+    """
+    Read the chronological listing: one table row per sitting, carrying the
+    sitting number and a `show-doc` link whose `id` is the document id.
+    """
+    soup = BeautifulSoup(html, 'html.parser')
+    documents: dict[int, str] = {}
+
+    for link in soup.find_all('a', href=True):
+        if 'tipodoc=Resaula' not in link['href']:
+            continue
+        document = DOCUMENT_ID_RE.search(link['href'])
+        number = REPORT_NUMBER_RE.search(link.get('title', ''))
+        if document and number:
+            documents.setdefault(int(number.group(1)), document.group(1))
+
+    return documents
 
 
 def parse_senato_html(html: str, ref: SessionRef) -> list[Speech]:

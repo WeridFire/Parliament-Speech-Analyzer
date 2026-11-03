@@ -21,40 +21,38 @@ data/
 ```json
 {
   "version": 2,
-  "generated_at": "2026-08-06T12:17:16+00:00",
+  "generated_at": "2026-11-03T14:33:01+00:00",
   "chambers": {
-    "camera": {
-      "label": "camera",
+    "senato": {
+      "label": "senate",
       "stats": "…",
       "periods": {
         "years": [
-          "2024",
           "2025",
           "2026"
         ],
         "months": [
+          "2026-10",
+          "2026-09",
+          "2026-08",
+          "2026-07",
+          "2026-06",
+          "2026-05",
+          "2026-04",
+          "2026-03",
           "2026-02",
           "2026-01",
           "2025-12",
           "2025-11",
           "2025-10",
-          "2025-09",
-          "2025-08",
-          "2025-07",
-          "2025-06",
-          "2025-05",
-          "2025-04",
-          "2025-03",
-          "2025-02",
-          "2025-01",
-          "2024-12"
+          "2025-09"
         ]
       },
       "resources": {
         "core": {
-          "path": "camera/core.json",
-          "bytes": 1938193,
-          "digest": "0a4eaeff07c373c4"
+          "path": "senato/core.json",
+          "bytes": 225871,
+          "digest": "ce02b20d006b9143"
         },
         "speeches": "…",
         "analytics": {
@@ -72,24 +70,23 @@ Every resource entry carries `path`, `bytes` and a content `digest`.
 
 ## core.json
 
-Top-level keys: `deputies`, `deputies_by_period`, `clusters`, `rebels`, `all_divergence_scores`, `stats`
+Top-level keys: `deputies`, `deputies_by_period`, `clusters`, `parties`, `stats`
 
 ### core.deputies[]
 
 | Field | Type |
 |---|---|
-| `deputy` | string ("Varchi Maria Carolina [Fratelli d'Italia]") |
-| `name` | string ("Varchi Maria Carolina") |
-| `party` | string ("Fratelli d'Italia") |
-| `role` | string ("relatrice") |
+| `deputy` | string ("Paganella Andrea [Lega]") |
+| `name` | string ("Paganella Andrea") |
+| `party` | string ("Lega") |
+| `bloc` | string ("maggioranza") |
+| `role` | string ("relatore") |
 | `x` | number |
 | `y` | number |
 | `n_speeches` | number |
 | `cluster` | number |
 | `cluster_label` | string ("Riforme Elettorali") |
-| `source` | string ("camera") |
-| `topic_scores` | array[14] of number |
-| `divergence_pct` | number |
+| `source` | string ("senate") |
 
 ### core.stats
 
@@ -97,10 +94,14 @@ Top-level keys: `deputies`, `deputies_by_period`, `clusters`, `rebels`, `all_div
 |---|---|
 | `total_speeches` | number |
 | `total_deputies` | number |
+| `total_speakers` | number |
 | `total_parties` | number |
 | `n_clusters` | number |
-| `source` | string ("camera") |
-| `analytics_run` | object {failed_analyzers} |
+| `unclassified_speeches` | number |
+| `first_date` | string ("2025-08-04") |
+| `last_date` | string ("2026-10-29") |
+| `source` | string ("senate") |
+| `analytics_run` | object {failed_analyzers, failures, skipped_global} |
 
 `deputies_by_period` holds the same record shape bucketed by period:
 `global`, `by_year['2025']`, `by_month['2025-11']`, plus
@@ -110,45 +111,48 @@ Top-level keys: `deputies`, `deputies_by_period`, `clusters`, `rebels`, `all_div
 
 | Field | Type |
 |---|---|
-| `deputy` | string ("Varchi Maria Carolina [Fratelli d'Italia]") |
-| `party` | string ("Fratelli d'Italia") |
-| `date` | string ("2024-12-02") |
+| `deputy` | string ("Paganella Andrea [Lega]") |
+| `party` | string ("Lega") |
+| `date` | string ("2025-08-04") |
+| `text` | string ("Signor Presidente, Ministro, colleghi, giunge quindi all'esa…") |
 | `x` | number |
 | `y` | number |
 | `cluster` | number |
 | `cluster_label` | string ("Riforme Elettorali") |
-| `rhetoric_style` | string ("neutrale") |
-| `source` | string ("camera") |
-| `url` | string ("https://www.camera.it/leg19/410?idSeduta=0390&tipo=stenograf…") |
-| `topic_scores` | array[14] of number |
-| `text` | string ("Grazie, Presidente. L'Assemblea avvia oggi l'esame del diseg…") |
-| `divergence_pct` | number |
+| `source` | string ("senate") |
+| `url` | string ("https://www.senato.it/show-doc?leg=19&tipodoc=Resaula&id=147…") |
+| `cluster_conf` | number |
 
 Notes:
 
 - `text` is the speech as delivered, truncated for transport. The full
   report is linked by `url`.
 - `cluster` is `-1` for speeches too far from every topic to classify;
-  `cluster_conf` is the margin between the best and second-best topic.
-- `divergence_pct` is the share of a speaker's interventions outside
-  their party's dominant theme. It measures topic choice, not dissent.
+  `cluster_conf` is the margin between the best and second-best topic
+  (similarities taken after removing the corpus mean).
+- `party` is the canonical group name; `core.parties` gives each group's
+  bloc (`maggioranza`, `opposizione`, `altro`).
 
 ## analytics/*.json
 
-Analyzer sections present at global scope: `identity`, `sentiment`, `temporal`, `relations`, `speaker`, `rhetoric`, `factions`, `alliances`, `topics`
+Analyzer sections present at global scope: `identity`, `topics`, `blocs`, `relations`, `reactions`, `mentions`, `temporal`, `speaker`, `language`
 
 Period files carry the same shape, minus analyzers that decline to run on a
-slice: metrics about change over time (`temporal`) and corpus-level labels
-(`topics`) are global-only, and others require a minimum sample size. A
-period whose analyzers all declined has no file at all, so the frontend
-falls back to the global block.
+slice: metrics about change over time (`temporal`) are global-only, and
+the others require a minimum sample size. A period whose analyzers all
+declined has no file at all. The frontend falls back to the global block
+section by section, and says so.
 
-- `identity`: object {thematic_fingerprints, generalism_index, distinctive_keywords}
-- `sentiment`: object {topic_sentiment, readability, polarization, party_topic_sentiment, sentiment_rankings}
-- `temporal`: object {topic_trends, semantic_drift, crisis_index, topic_surfing}
-- `relations`: object {affinity_matrix, party_cohesion, thematic_overlap, cross_party_pairs}
-- `speaker`: object {by_speaker, rankings, topic_leaders}
-- `rhetoric`: object {by_speaker, by_party, rankings}
-- `factions`: object {conformity, by_party}
-- `alliances`: object {transversal_clusters, unusual_pairs, left_right_alliances}
-- `topics`: object {cluster_topics, cluster_labels}
+`reactions.coverage.attributed` is false for the Senato, whose reports
+print a bare "(Applausi)" without naming the group; only `received` and
+`coverage` are meaningful there.
+
+- `identity`: object {topic_profile, generalism_index, distinctive_keywords}
+- `topics`: object {by_topic}
+- `blocs`: object {summary, ownership, keywords}
+- `relations`: object {affinity_matrix, party_cohesion, cross_party_pairs}
+- `reactions`: object {parties, speeches, applause, dissent, received, cross_applause, …}
+- `mentions`: object {figures, matrix, speeches}
+- `temporal`: object {topic_trends}
+- `speaker`: object {by_speaker, rankings}
+- `language`: object {readability, polarization}

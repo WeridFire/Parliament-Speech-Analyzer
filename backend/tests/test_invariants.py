@@ -5,7 +5,7 @@ Every metric in this project is computed by masking a DataFrame and using the
 result to slice a parallel numpy array. Those two structures are only correct
 together, and when they drift apart nothing raises - the numbers just quietly
 become wrong. These tests pin the invariant at the public seams (period
-analytics, deputy aggregation, semantic drift) so a refactor of the plumbing
+analytics, deputy aggregation, the term matrix) so a refactor of the plumbing
 underneath cannot silently break it.
 
 The technique: build *traceable* arrays where row i carries the value i in its
@@ -18,9 +18,11 @@ import pandas as pd
 import pytest
 from unittest.mock import patch
 
+from scipy.sparse import csr_matrix
+
 from backend.analyzers.period_orchestrator import compute_analytics_by_period
-from backend.analyzers.temporal.drift import compute_semantic_drift
 from backend.core.aggregation import compute_deputies_by_period
+from backend.core.dataset import SpeechDataset
 
 
 N_ROWS = 60
@@ -188,35 +190,21 @@ class TestPeriodAnalyticsAlignment:
 # =============================================================================
 
 class TestDeputyAggregationAlignment:
-    """Deputy topic scores are averaged from sliced rows - same invariant."""
+    """Deputy map positions are averaged from sliced rows - same invariant."""
 
-    def test_global_topic_scores_match_source_rows(
-        self, traceable_df, traceable_topic_scores, cluster_labels
-    ):
-        result = compute_deputies_by_period(
-            df=traceable_df,
-            topic_scores=traceable_topic_scores,
-            cluster_labels=cluster_labels,
-            rebel_scores={},
-        )
+    def test_global_positions_match_source_rows(self, traceable_df, cluster_labels):
+        result = compute_deputies_by_period(df=traceable_df, cluster_labels=cluster_labels)
 
-        expected_by_deputy = traceable_df.groupby('deputy')['row_id'].mean().round(3).to_dict()
+        expected_by_deputy = traceable_df.groupby('deputy')['row_id'].mean().to_dict()
 
         assert result['global'], "no deputies aggregated"
         for deputy in result['global']:
-            assert deputy['topic_scores'][0] == pytest.approx(
-                expected_by_deputy[deputy['deputy']], abs=1e-3
-            ), f"{deputy['deputy']}: topic scores came from the wrong rows"
+            assert deputy['x'] == pytest.approx(expected_by_deputy[deputy['deputy']], abs=1e-6), (
+                f"{deputy['deputy']}: position came from the wrong rows"
+            )
 
-    def test_per_year_topic_scores_match_source_rows(
-        self, traceable_df, traceable_topic_scores, cluster_labels
-    ):
-        result = compute_deputies_by_period(
-            df=traceable_df,
-            topic_scores=traceable_topic_scores,
-            cluster_labels=cluster_labels,
-            rebel_scores={},
-        )
+    def test_per_year_positions_match_source_rows(self, traceable_df, cluster_labels):
+        result = compute_deputies_by_period(df=traceable_df, cluster_labels=cluster_labels)
 
         df = traceable_df.copy()
         df['_year'] = df['date'].str.slice(0, 4)
@@ -224,20 +212,13 @@ class TestDeputyAggregationAlignment:
         for year, deputies in result['by_year'].items():
             expected = df[df['_year'] == year].groupby('deputy')['row_id'].mean().to_dict()
             for deputy in deputies:
-                assert deputy['topic_scores'][0] == pytest.approx(
-                    expected[deputy['deputy']], abs=1e-3
-                ), f"{year}/{deputy['deputy']}: topic scores came from the wrong rows"
+                assert deputy['x'] == pytest.approx(expected[deputy['deputy']], abs=1e-6), (
+                    f"{year}/{deputy['deputy']}: position came from the wrong rows"
+                )
 
-    def test_period_buckets_partition_the_speeches(
-        self, traceable_df, traceable_topic_scores, cluster_labels
-    ):
+    def test_period_buckets_partition_the_speeches(self, traceable_df, cluster_labels):
         """Every speech lands in exactly one year bucket - no drops, no doubles."""
-        result = compute_deputies_by_period(
-            df=traceable_df,
-            topic_scores=traceable_topic_scores,
-            cluster_labels=cluster_labels,
-            rebel_scores={},
-        )
+        result = compute_deputies_by_period(df=traceable_df, cluster_labels=cluster_labels)
 
         total_by_year = sum(
             d['n_speeches'] for deputies in result['by_year'].values() for d in deputies
@@ -246,33 +227,23 @@ class TestDeputyAggregationAlignment:
 
 
 # =============================================================================
-# SEMANTIC DRIFT
+# TERM MATRIX
 # =============================================================================
 
-class TestSemanticDriftAlignment:
-    """drift.py resolves labels via get_loc - lock that in before refactoring."""
+class TestTermMatrixAlignment:
+    """The sparse term matrix is narrowed with the frame, like the embeddings."""
 
-    def test_drift_uses_the_right_embedding_rows(
-        self, traceable_df, traceable_embeddings
-    ):
-        result = compute_semantic_drift(
-            df=traceable_df,
-            embeddings=traceable_embeddings,
-            party_col='group',
-            date_col='date',
+    def test_subset_keeps_term_rows_aligned(self, traceable_df):
+        terms = csr_matrix(np.arange(N_ROWS, dtype=float).reshape(-1, 1))
+        dataset = SpeechDataset(df=traceable_df, terms=terms)
+
+        shuffled = dataset.take(np.random.default_rng(0).permutation(N_ROWS))
+        party_b = shuffled.subset(shuffled.df['group'] == 'Party_B')
+
+        assert np.array_equal(
+            party_b.terms.toarray().ravel(), party_b.df['row_id'].to_numpy(dtype=float)
         )
 
-        assert result, "expected drift for both parties"
-
-        for party, data in result.items():
-            party_rows = traceable_df[traceable_df['group'] == party]
-            centroids = {}
-            for year, group in party_rows.groupby(party_rows['date'].str.slice(0, 4)):
-                if len(group) >= 5:
-                    centroids[year] = traceable_embeddings[group['row_id'].to_numpy(), 0].mean()
-
-            years = sorted(centroids)
-            expected_total = sum(
-                abs(centroids[b] - centroids[a]) for a, b in zip(years, years[1:])
-            )
-            assert data['total_drift'] == pytest.approx(expected_total, rel=1e-3)
+    def test_mismatched_term_matrix_is_rejected(self, traceable_df):
+        with pytest.raises(ValueError):
+            SpeechDataset(df=traceable_df, terms=csr_matrix((N_ROWS - 1, 3)))

@@ -1,67 +1,63 @@
 import { useDeferredValue, useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
-import { Card, CardBody, CardHeader, RankingList, Select, StatTile, Table } from '../../ui';
+import { Card, CardBody, CardHeader, RankingList, ScopeNote, Select, StatTile } from '../../ui';
 import { Radar } from '../../viz/charts/Radar';
-import { useAnalysis } from './AnalysisLayout';
-import { partyDot, partyShort, resolveParty } from '../../domain/parties';
-import { SPEAKER_RANKINGS } from '../../domain/metrics';
+import { useAnalysis } from './context';
+import { partyDot, partyName, partyShort } from '../../domain/parties';
+import { BLOC_LABELS, SPEAKER_RANKINGS } from '../../domain/metrics';
 import { cleanName } from '../../data/selectors';
 import { dec, dec2, int, pct } from '../../lib/format';
 import { EmptyState, NoDataForPeriod } from '../../ui/EmptyState';
-import { ClassificationTag } from '../../ui/Chip';
 import { cn } from '../../lib/cn';
 
 /**
- * Individual speaker profiles and the four backend rankings.
+ * Individual speaker profiles and the backend rankings.
  */
 export default function Speakers() {
-  const { analytics, clusters, period, mode } = useAnalysis();
-  const speaker = analytics?.speaker;
+  const { section, period, mode } = useAnalysis();
+  const { data: speaker, fromGlobal } = section('speaker');
 
-  const bySpeaker = speaker?.by_speaker ?? {};
-  const rankings = speaker?.rankings ?? {};
+  const bySpeaker = useMemo(() => speaker?.by_speaker ?? {}, [speaker]);
+  const rankings = useMemo(() => speaker?.rankings ?? {}, [speaker]);
 
-  const names = useMemo(() => Object.keys(bySpeaker).sort(), [bySpeaker]);
+  const names = useMemo(
+    () => Object.keys(bySpeaker).sort((a, b) => bySpeaker[b].n_speeches - bySpeaker[a].n_speeches),
+    [bySpeaker],
+  );
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(null);
   const deferred = useDeferredValue(query);
 
+  // The whole roster, filtered: a few hundred rows render without trouble, and
+  // capping the list (it was cut at 12) hid most members from anyone scrolling.
   const results = useMemo(() => {
     const q = deferred.trim().toLowerCase();
-    if (!q) return names.slice(0, 12);
-    return names.filter((n) => n.toLowerCase().includes(q)).slice(0, 12);
+    return q ? names.filter((n) => n.toLowerCase().includes(q)) : names;
   }, [names, deferred]);
 
   const active = selected && bySpeaker[selected] ? selected : results[0];
 
-  // Only offer rankings the backend actually emitted. The old tab configured a
-  // dozen categories, most of which did not exist in the data, and omitted
-  // `most_active`, which does.
+  // Only offer rankings the backend actually emitted.
   const availableRankings = useMemo(
     () => SPEAKER_RANKINGS.filter((r) => Array.isArray(rankings[r.id]) && rankings[r.id].length),
     [rankings],
   );
   const [rankingId, setRankingId] = useState(null);
-  const activeRanking =
-    availableRankings.find((r) => r.id === rankingId) ?? availableRankings[0];
+  const activeRanking = availableRankings.find((r) => r.id === rankingId) ?? availableRankings[0];
 
   const rankingRows = useMemo(() => {
     if (!activeRanking) return [];
     const rows = rankings[activeRanking.id] ?? [];
-    const max = Math.max(...rows.map(([, v]) => v), 1);
+    const max = Math.max(...rows.map(([, v]) => v), 1e-9);
+    const format = activeRanking.digits === 2 ? dec2 : activeRanking.digits === 1 ? dec : int;
     return rows.map(([name, value]) => {
-      const party = bySpeaker[name] ? partyOf(name) : null;
+      const party = bySpeaker[name]?.party;
       return {
         key: name,
         name: cleanName(name),
         meta: party ? partyShort(party) : undefined,
         percent: (value / max) * 100,
-        value:
-          activeRanking.unit === '%'
-            ? pct(value)
-            : `${activeRanking.digits === 2 ? dec2(value) : activeRanking.digits === 1 ? dec(value) : int(value)}${
-                activeRanking.unit ? ` ${activeRanking.unit}` : ''
-              }`,
+        value: `${format(value)}${activeRanking.unit ? ` ${activeRanking.unit}` : ''}`,
         dot: party ? partyDot(party, mode) : undefined,
       };
     });
@@ -71,8 +67,12 @@ export default function Speakers() {
 
   return (
     <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="lg:col-span-2">
+        <ScopeNote fromGlobal={fromGlobal} period={period} />
+      </div>
+
       <Card className="lg:row-span-2">
-        <CardHeader title="Parlamentari" subtitle={`${names.length} con dati sufficienti`} />
+        <CardHeader title="Parlamentari" subtitle={`${names.length} con almeno 5 interventi`} />
         <CardBody className="py-3">
           <div className="relative">
             <Search
@@ -90,7 +90,7 @@ export default function Speakers() {
             />
           </div>
 
-          <ul className="mt-2 max-h-[26rem] overflow-y-auto">
+          <ul className="mt-2 max-h-160 overflow-y-auto">
             {results.map((name) => (
               <li key={name}>
                 <button
@@ -103,12 +103,11 @@ export default function Speakers() {
                 >
                   <span
                     className="h-2 w-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: partyDot(partyOf(name), mode) }}
+                    style={{ backgroundColor: partyDot(bySpeaker[name].party, mode) }}
                     aria-hidden="true"
                   />
-                  <span className="min-w-0 flex-1 truncate text-body text-ink">
-                    {cleanName(name)}
-                  </span>
+                  <span className="min-w-0 flex-1 truncate text-body text-ink">{cleanName(name)}</span>
+                  <span className="tabular shrink-0 text-label text-muted">{bySpeaker[name].n_speeches}</span>
                 </button>
               </li>
             ))}
@@ -118,7 +117,7 @@ export default function Speakers() {
       </Card>
 
       {active ? (
-        <SpeakerProfile name={active} stats={bySpeaker[active]} clusters={clusters} mode={mode} />
+        <SpeakerProfile name={active} stats={bySpeaker[active]} mode={mode} />
       ) : (
         <Card>
           <CardBody>
@@ -138,7 +137,7 @@ export default function Speakers() {
                 hideLabel
                 value={activeRanking?.id ?? ''}
                 onChange={setRankingId}
-                className="w-56"
+                className="w-60"
                 options={availableRankings.map((r) => ({ value: r.id, label: r.label }))}
               />
             ) : null
@@ -152,36 +151,29 @@ export default function Speakers() {
   );
 }
 
-/** "SURNAME Name [PD-IDP]" -> "PD-IDP" */
-function partyOf(deputyKey) {
-  const m = /\[([^\]]+)\]\s*$/.exec(deputyKey ?? '');
-  return m ? m[1] : '';
-}
-
-function SpeakerProfile({ name, stats, clusters, mode }) {
-  const { verbosity, linguistic, consistency, vocabulary, intervention, network, topic_leadership } =
-    stats ?? {};
+function SpeakerProfile({ name, stats, mode }) {
+  const { verbosity, linguistic, vocabulary, top_topics: topTopics, reactions } = stats ?? {};
 
   /**
-   * Six-axis linguistic profile, normalised to 0–1. Rates are per 1.000 words
-   * and unbounded in principle, so each is capped at a sane ceiling rather than
+   * Linguistic profile, normalised to 0–1. Rates are per 1.000 words and
+   * unbounded in principle, so each is capped at a fixed ceiling rather than
    * scaled to the observed max — otherwise the shape would change meaning every
    * time the filter changes.
    */
   const radar = useMemo(() => {
-    if (!linguistic && !verbosity) return [];
+    if (!linguistic) return [];
     const norm = (v, ceiling) => Math.min((v ?? 0) / ceiling, 1);
     return [
       {
         key: name,
         label: cleanName(name),
         values: [
-          norm(linguistic?.question_rate, 20),
-          norm(linguistic?.self_reference_rate, 30),
-          norm(linguistic?.negation_rate, 30),
-          norm(linguistic?.data_citation_rate, 20),
-          norm(verbosity?.avg_words_per_sentence, 60),
-          norm(vocabulary?.type_token_ratio, 1) ,
+          norm(linguistic.question_rate, 15),
+          norm(linguistic.self_reference_rate, 30),
+          norm(linguistic.negation_rate, 50),
+          norm(linguistic.data_citation_rate, 10),
+          norm(verbosity?.avg_sentence_words, 50),
+          norm(vocabulary?.mattr, 1),
         ],
       },
     ];
@@ -191,102 +183,66 @@ function SpeakerProfile({ name, stats, clusters, mode }) {
     <Card>
       <CardHeader
         title={cleanName(name)}
-        subtitle={resolveParty(partyOf(name)).name}
-        actions={
-          consistency?.classification ? (
-            <ClassificationTag value={consistency.classification} />
-          ) : null
-        }
+        subtitle={`${partyName(stats.party)} · ${BLOC_LABELS[stats.bloc] ?? ''}`}
       />
       <CardBody className="flex flex-col gap-6">
         <div className="grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-4">
-          <StatTile label="Interventi" value={int(stats?.n_speeches)} />
+          <StatTile label="Interventi" value={int(stats.n_speeches)} meta={`in ${stats.speaking_days} giornate`} />
           <StatTile
-            label="Parole/intervento"
-            value={int(verbosity?.avg_words_per_speech)}
+            label="Mesi attivi"
+            value={`${stats.active_months}/${stats.total_months}`}
+            meta="mesi con almeno un intervento"
           />
+          <StatTile label="Parole/intervento" value={int(verbosity?.avg_words)} />
           <StatTile
-            label="Ricchezza lessicale"
-            value={dec2(vocabulary?.type_token_ratio)}
-            meta={vocabulary?.classification ? undefined : 'sotto soglia'}
-          />
-          <StatTile
-            label="Regolarità"
-            value={pct(intervention?.regularity_score)}
-            meta={
-              intervention?.active_months
-                ? `${intervention.active_months}/${intervention.total_months} mesi attivi`
-                : undefined
-            }
+            label="Varietà lessicale"
+            value={vocabulary ? dec2(vocabulary.mattr) : '—'}
+            meta={vocabulary ? 'MATTR, finestre di 500 parole' : 'servono almeno 1.000 parole'}
           />
         </div>
 
-        {radar.length ? (
+        <div className="grid gap-6 md:grid-cols-2">
           <div>
             <h4 className="mb-1 text-label text-muted">PROFILO LINGUISTICO</h4>
             <Radar
-              axes={['Domande', 'Prima persona', 'Negazioni', 'Dati citati', 'Periodo lungo', 'Lessico vario']}
+              axes={['Domande', 'Prima persona', 'Negazioni', 'Dati citati', 'Frasi lunghe', 'Lessico vario']}
               series={radar}
               mode={mode}
-              height={320}
+              height={300}
               title="Profilo linguistico"
             />
           </div>
-        ) : null}
 
-        {/*
-          FIX: this section previously gated on `topic_leadership.topics_led_labels`
-          and `dominant_topic_label`, neither of which the backend emits — it
-          produces `best_topic`, `best_topic_label` and `best_similarity`. The
-          whole block therefore never rendered.
-        */}
-        {topic_leadership?.best_topic_label ? (
-          <div className="border-t border-rule pt-4">
-            <h4 className="mb-1 text-label text-muted">AREA DI COMPETENZA</h4>
-            <p className="text-body text-ink">
-              {topic_leadership.best_topic_label}
-              <span className="ml-2 text-muted">
-                similarità {dec2(topic_leadership.best_similarity)}
-              </span>
-            </p>
-          </div>
-        ) : null}
+          <div className="flex flex-col gap-5">
+            <div>
+              <h4 className="mb-2 text-label text-muted">TEMI PRINCIPALI</h4>
+              {topTopics?.length ? (
+                <ul className="flex flex-col">
+                  {topTopics.map((t) => (
+                    <li key={t.topic} className="flex items-baseline justify-between gap-3 border-b border-rule py-1.5 last:border-b-0">
+                      <span className="truncate text-body text-ink">{t.label}</span>
+                      <span className="tabular shrink-0 text-num text-secondary">
+                        {pct(t.share)} · {int(t.n)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-body text-secondary">Nessun intervento classificato.</p>
+              )}
+            </div>
 
-        {network && (network.mentions_given || network.mentions_received) ? (
-          <div className="border-t border-rule pt-4">
-            <h4 className="mb-2 text-label text-muted">RETE DELLE CITAZIONI</h4>
-            <Table
-              caption="Citazioni date e ricevute"
-              columns={[
-                { key: 'label', header: 'Direzione' },
-                { key: 'count', header: 'Numero', numeric: true, width: '6rem' },
-                { key: 'who', header: 'Principali' },
-              ]}
-              rows={[
-                {
-                  label: 'Cita',
-                  count: int(network.mentions_given),
-                  who: topNames(network.top_mentioned),
-                },
-                {
-                  label: 'È citato da',
-                  count: int(network.mentions_received),
-                  who: topNames(network.mentioned_by),
-                },
-              ]}
-              getRowKey={(r) => r.label}
-            />
+            <div>
+              <h4 className="mb-2 text-label text-muted">REAZIONI DELL&apos;AULA</h4>
+              <p className="text-body text-secondary">
+                <span className="tabular text-ink">{int(reactions?.applauded_by_others)}</span> interventi
+                applauditi da altri gruppi ·{' '}
+                <span className="tabular text-ink">{int(reactions?.contested)}</span> contestati
+              </p>
+            </div>
           </div>
-        ) : null}
+        </div>
       </CardBody>
     </Card>
   );
-}
-
-function topNames(pairs) {
-  if (!pairs?.length) return '—';
-  return pairs
-    .slice(0, 3)
-    .map(([n]) => cleanName(n))
-    .join(', ');
 }

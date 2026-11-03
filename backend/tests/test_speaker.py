@@ -2,176 +2,85 @@
 Tests for Speaker Analyzer.
 
 Tests:
-- Verbosity/Linguistic Metrics
-- Consistency Index
-- Topic Leadership
-- Intervention Patterns
-- Vocabulary Richness
-- Interaction Network
+- Profiles aggregated from per-speech features
+- Vocabulary richness (MATTR)
+- Rankings
 """
 
+import pandas as pd
 import pytest
-import sys
-from pathlib import Path
 
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
+from backend.analyzers.speaker import SpeakerAnalyzer, compute_speaker_profiles, mattr
+from backend.core.features import add_speech_features
 
 
 class TestSpeakerAnalyzer:
-    """Tests for SpeakerAnalyzer class."""
-    
+
     def test_analyzer_registration(self):
-        """Test that SpeakerAnalyzer is registered."""
         from backend.analyzers import AnalyzerRegistry
-        
+
         assert 'speaker' in AnalyzerRegistry.names()
-    
+
     def test_analyzer_compute(self, mock_data, analyzer_kwargs):
-        """Test full analyzer computation."""
-        from backend.analyzers.speaker import SpeakerAnalyzer
-        
-        analyzer = SpeakerAnalyzer(**analyzer_kwargs)
-        result = analyzer.compute()
-        
-        assert isinstance(result, dict)
-        assert 'by_speaker' in result
+        result = SpeakerAnalyzer(**analyzer_kwargs).compute()
+
+        assert set(result) == {'by_speaker', 'rankings'}
+        assert set(result['by_speaker']) <= set(mock_data.df['deputy'])
+
+    def test_rankings_are_pairs_in_descending_order(self, analyzer_kwargs):
+        rankings = SpeakerAnalyzer(**analyzer_kwargs).compute()['rankings']
+
+        for entries in rankings.values():
+            values = [value for _, value in entries]
+            assert values == sorted(values, reverse=True)
 
 
-class TestVerbosityMetrics:
-    """Tests for verbosity and linguistic metrics."""
-    
-    def test_aggregate_speaker_metrics(self, mock_df):
-        """Test aggregated speaker metrics computation."""
-        from backend.analyzers.speaker import aggregate_speaker_metrics
-        
-        result = aggregate_speaker_metrics(
-            df=mock_df,
-            speaker_col='deputy',
-            text_col='cleaned_text'
-        )
-        
-        assert len(result) > 0
-        
-        for speaker, data in result.items():
-            assert 'verbosity' in data
-            assert 'linguistic' in data
-            assert 'n_speeches' in data
-    
-    def test_verbosity_values(self, mock_df):
-        """Test that verbosity values are reasonable."""
-        from backend.analyzers.speaker import aggregate_speaker_metrics
-        
-        result = aggregate_speaker_metrics(
-            df=mock_df,
-            speaker_col='deputy',
-            text_col='cleaned_text'
-        )
-        
-        for speaker, data in result.items():
-            verbosity = data['verbosity']
-            assert verbosity['avg_words_per_speech'] > 0
-            assert verbosity['total_words'] > 0
+class TestProfiles:
 
+    @pytest.fixture
+    def frame(self):
+        rows = []
+        for i in range(6):
+            rows.append({
+                'deputy': 'Rossi', 'group': 'Partito Democratico', 'cluster': i % 2,
+                'date': f'2025-0{1 + i % 3}-10',
+                'raw_text': 'Io non sono d\'accordo? Il 15% delle famiglie paga 3,5 miliardi.',
+                'notes': ['Applausi dei deputati del gruppo Lega-Salvini Premier'] if i == 0 else [],
+            })
+        return add_speech_features(pd.DataFrame(rows))
 
-class TestConsistencyIndex:
-    """Tests for consistency index computation."""
-    
-    def test_compute_consistency_index(self, mock_df, mock_embeddings):
-        """Test consistency index computation."""
-        from backend.analyzers.speaker import compute_consistency_index
-        
-        result = compute_consistency_index(
-            df=mock_df,
-            embeddings=mock_embeddings,
-            speaker_col='deputy'
-        )
-        
-        assert len(result) > 0
-        
-        for speaker, data in result.items():
-            assert 'score' in data
-            assert 'classification' in data
-            assert 0 <= data['score'] <= 100
+    def test_counts_and_activity(self, frame):
+        profile = compute_speaker_profiles(frame, {0: 'A', 1: 'B'})['Rossi']
 
+        assert profile['n_speeches'] == 6
+        assert profile['active_months'] == 3
+        assert profile['total_months'] == 3
+        assert profile['bloc'] == 'opposizione'
 
-class TestTopicLeadership:
-    """Tests for topic leadership computation."""
-    
-    def test_compute_topic_leadership(self, mock_df, mock_embeddings, mock_cluster_centroids, mock_cluster_labels):
-        """Test topic leadership computation."""
-        from backend.analyzers.speaker import compute_topic_leadership
-        
-        result = compute_topic_leadership(
-            df=mock_df,
-            embeddings=mock_embeddings,
-            cluster_centroids=mock_cluster_centroids,
-            cluster_labels=mock_cluster_labels,
-            speaker_col='deputy',
-            cluster_col='cluster'
-        )
-        
-        assert 'by_speaker' in result
-        assert 'by_topic' in result
+    def test_rates_are_per_thousand_words(self, frame):
+        profile = compute_speaker_profiles(frame, {0: 'A', 1: 'B'})['Rossi']
+        words = profile['verbosity']['total_words']
 
+        assert profile['linguistic']['question_rate'] == pytest.approx(6 / words * 1000, abs=0.01)
+        assert profile['linguistic']['data_citation_rate'] > 0
 
-class TestInterventionPatterns:
-    """Tests for intervention patterns computation."""
-    
-    def test_compute_intervention_patterns(self, mock_df):
-        """Test intervention patterns computation."""
-        from backend.analyzers.speaker import compute_intervention_patterns
-        
-        result = compute_intervention_patterns(
-            df=mock_df,
-            speaker_col='deputy',
-            date_col='date'
-        )
-        
-        assert len(result) > 0
-        
-        for speaker, data in result.items():
-            assert 'avg_speeches_per_month' in data
-            assert 'regularity_score' in data
+    def test_top_topics_and_reactions(self, frame):
+        profile = compute_speaker_profiles(frame, {0: 'A', 1: 'B'})['Rossi']
+
+        assert [t['share'] for t in profile['top_topics']] == [50.0, 50.0]
+        assert profile['reactions']['applauded_by_others'] == 1
 
 
 class TestVocabularyRichness:
-    """Tests for vocabulary richness computation."""
-    
-    def test_compute_vocabulary_richness(self, mock_df):
-        """Test vocabulary richness computation."""
-        from backend.analyzers.speaker import compute_vocabulary_richness
-        
-        result = compute_vocabulary_richness(
-            df=mock_df,
-            speaker_col='deputy',
-            text_col='cleaned_text'
-        )
-        
-        assert len(result) > 0
-        
-        for speaker, data in result.items():
-            assert 'type_token_ratio' in data
-            assert 0 <= data['type_token_ratio'] <= 1
 
+    def test_mattr_does_not_fall_with_length(self):
+        """The TTR bug: the same style, said for longer, looked poorer."""
+        words = [f'w{i % 300}' for i in range(600)]
 
-class TestInteractionNetwork:
-    """Tests for interaction network computation."""
-    
-    def test_compute_interaction_network(self, mock_df):
-        """Test interaction network computation."""
-        from backend.analyzers.speaker import compute_interaction_network
-        
-        result = compute_interaction_network(
-            df=mock_df,
-            speaker_col='deputy',
-            text_col='cleaned_text'
-        )
-        
-        assert len(result) > 0
-        
-        for speaker, data in result.items():
-            assert 'mentions_given' in data
-            assert 'mentions_received' in data
-            assert 'out_degree' in data
-            assert 'in_degree' in data
+        assert mattr(words * 4, window=200) == pytest.approx(mattr(words, window=200), abs=0.02)
+
+    def test_mattr_rewards_variety(self):
+        repetitive = ['la', 'legge'] * 600
+        varied = [f'parola{i}' for i in range(1200)]
+
+        assert mattr(varied) > mattr(repetitive)

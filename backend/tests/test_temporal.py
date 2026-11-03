@@ -2,95 +2,70 @@
 Tests for Temporal Analyzer.
 
 Tests:
-- Topic Trends
-- Semantic Drift
-- Crisis Index
-- Topic Surfing
+- Date utilities
+- Topic Trends (shares, counts, bloc activity)
 """
 
+import pandas as pd
 import pytest
-import sys
-from pathlib import Path
 
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
+from backend.analyzers.temporal import TemporalAnalyzer, add_time_columns, compute_topic_trends, parse_date
 
 
 class TestTemporalAnalyzer:
-    """Tests for TemporalAnalyzer class."""
-    
+
     def test_analyzer_registration(self):
-        """Test that TemporalAnalyzer is registered."""
         from backend.analyzers import AnalyzerRegistry
-        
+
         assert 'temporal' in AnalyzerRegistry.names()
-    
-    def test_analyzer_compute(self, mock_data, analyzer_kwargs):
-        """Test full analyzer computation."""
-        from backend.analyzers.temporal import TemporalAnalyzer
-        
-        analyzer = TemporalAnalyzer(**analyzer_kwargs)
-        result = analyzer.compute()
-        
-        assert isinstance(result, dict)
+
+    def test_only_runs_globally(self):
+        assert TemporalAnalyzer.supports('global', 10)[0]
+        assert not TemporalAnalyzer.supports('month', 10_000)[0]
+
+    def test_analyzer_compute(self, analyzer_kwargs):
+        result = TemporalAnalyzer(**analyzer_kwargs).compute()
+
+        assert 'topic_trends' in result
+
+
+class TestDateUtilities:
+
+    def test_parse_formats(self):
+        assert parse_date('2024-03-15').month == 3
+        assert parse_date('15/03/2024').day == 15
+        assert parse_date('15 marzo 2024').month == 3
+        assert parse_date('not a date') is None
+
+    def test_add_time_columns(self):
+        df = add_time_columns(pd.DataFrame({'date': ['2024-03-15']}))
+
+        assert df.loc[0, '_month'] == '2024-03'
 
 
 class TestTopicTrends:
-    """Tests for topic trends computation."""
-    
-    def test_compute_topic_trends(self, mock_df, mock_cluster_labels):
-        """Test topic trends computation."""
-        from backend.analyzers.temporal import compute_topic_trends
-        
-        result = compute_topic_trends(
-            df=mock_df,
-            cluster_col='cluster',
-            cluster_labels=mock_cluster_labels,
-            date_col='date',
-            granularity='month',
-            party_col='group'
+
+    @pytest.fixture
+    def frame(self):
+        rows = (
+            [{'date': '2025-01-10', 'cluster': 0, 'group': "Fratelli d'Italia"}] * 30
+            + [{'date': '2025-01-11', 'cluster': 1, 'group': 'Partito Democratico'}] * 10
+            + [{'date': '2025-02-10', 'cluster': 1, 'group': 'Partito Democratico'}] * 5
+            + [{'date': '2025-02-11', 'cluster': -1, 'group': 'Misto'}] * 5
         )
-        
-        assert 'global' in result
-        assert 'by_party' in result
-        assert 'periods' in result
-        assert isinstance(result['periods'], list)
+        return pd.DataFrame(rows)
 
+    def test_shares_are_of_each_months_classified_speeches(self, frame):
+        result = compute_topic_trends(frame, cluster_labels={0: 'A', 1: 'B', -1: 'Non classificato'})
 
-class TestSemanticDrift:
-    """Tests for semantic drift computation."""
-    
-    def test_compute_semantic_drift(self, mock_df, mock_embeddings):
-        """Test semantic drift computation."""
-        from backend.analyzers.temporal import compute_semantic_drift
-        
-        result = compute_semantic_drift(
-            df=mock_df,
-            embeddings=mock_embeddings,
-            party_col='group',
-            date_col='date'
-        )
-        
-        # May be empty if not enough time periods
-        assert isinstance(result, dict)
+        assert result['periods'] == ['2025-01', '2025-02']
+        assert result['shares']['2025-01'] == {0: 75.0, 1: 25.0}
+        # August-style thin months are no longer "falls": February is all topic 1.
+        assert result['shares']['2025-02'] == {0: 0.0, 1: 100.0}
+        assert result['totals']['2025-02'] == 5
 
+    def test_bloc_volume_counts_every_speech(self, frame):
+        result = compute_topic_trends(frame, cluster_labels={0: 'A', 1: 'B'})
 
-class TestCrisisIndex:
-    """Tests for crisis index computation."""
-    
-    def test_compute_crisis_index(self, mock_df, mock_cluster_labels):
-        """Test crisis index computation."""
-        from backend.analyzers.temporal import compute_crisis_index
-        
-        result = compute_crisis_index(
-            df=mock_df,
-            text_col='cleaned_text',
-            cluster_col='cluster',
-            cluster_labels=mock_cluster_labels,
-            date_col='date',
-            granularity='month'
-        )
-        
-        assert 'global' in result
-        assert 'crisis_keywords' in result
-        assert 'periods' in result
+        assert result['blocs']['2025-01'] == {'maggioranza': 30, 'opposizione': 10, 'altro': 0}
+        assert result['blocs']['2025-02']['altro'] == 5

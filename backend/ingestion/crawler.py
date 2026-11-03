@@ -167,38 +167,44 @@ def crawl(
     if not pending:
         return speeches, report
 
-    def fetch_one(ref: SessionRef):
-        return ref, source.fetch_session(ref)
+    def record(ref: SessionRef, fetch):
+        try:
+            session_speeches = fetch()
+        except ChallengeBlocked as e:
+            report.blocked += 1
+            if report.blocked <= 3:
+                logger.error("%s blocked: %s", ref.key, e)
+            return
+        except Exception as e:
+            report.failed += 1
+            report.errors.append(f"{ref.key}: {e}")
+            logger.warning("%s failed: %s", ref.key, e)
+            return
+
+        report.fetched += 1
+        if session_speeches:
+            report.parsed += 1
+            speeches.extend(session_speeches)
+
+        cache.save_json(
+            _session_key(ref),
+            [vars(s) for s in session_speeches],
+            rows=len(session_speeches),
+        )
 
     try:
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(fetch_one, ref): ref for ref in pending}
-
-            for future in as_completed(futures):
-                ref = futures[future]
-                try:
-                    _, session_speeches = future.result()
-                except ChallengeBlocked as e:
-                    report.blocked += 1
-                    if report.blocked <= 3:
-                        logger.error("%s blocked: %s", ref.key, e)
-                    continue
-                except Exception as e:
-                    report.failed += 1
-                    report.errors.append(f"{ref.key}: {e}")
-                    logger.warning("%s failed: %s", ref.key, e)
-                    continue
-
-                report.fetched += 1
-                if session_speeches:
-                    report.parsed += 1
-                    speeches.extend(session_speeches)
-
-                cache.save_json(
-                    _session_key(ref),
-                    [vars(s) for s in session_speeches],
-                    rows=len(session_speeches),
-                )
+        if max_workers <= 1:
+            # In the calling thread, not a one-worker pool: a browser transport
+            # started while listing sittings is bound to this thread, and every
+            # fetch from a pool thread failed with "Cannot switch to a different
+            # thread".
+            for ref in pending:
+                record(ref, lambda ref=ref: source.fetch_session(ref))
+        else:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {executor.submit(source.fetch_session, ref): ref for ref in pending}
+                for future in as_completed(futures):
+                    record(futures[future], future.result)
     finally:
         # A browser transport holds a Chromium subprocess; nothing else here
         # owns a resource worth releasing, so this is a no-op for plain HTTP.

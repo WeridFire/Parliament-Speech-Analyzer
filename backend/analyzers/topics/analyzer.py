@@ -6,56 +6,38 @@ import logging
 from backend.analyzers.base import BaseAnalyzer
 from backend.analyzers.registry import analyzer
 
-from .extraction import extract_cluster_topics
-from .labeling import get_cluster_labels
+from .owners import compute_topic_owners
 
 logger = logging.getLogger(__name__)
 
 
 @analyzer
 class TopicsAnalyzer(BaseAnalyzer):
-    """Analyzer for cluster topic extraction and labeling."""
-    
-    name = "topics"
-    description = "Cluster topic extraction and labeling"
-    version = "1.0"
+    """Who carries each topic: spokespeople, group involvement, vocabulary."""
 
-    # Cluster keywords are corpus-level labels; they do not change per month.
-    period_safe = False
-    
+    name = "topics"
+    description = "Who carries each topic"
+    version = "2.0"
+
+    min_speeches = 100
+
     default_features = {}  # No sub-features
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        
-        analyzer_config = self.config.get(self.name, {})
-        self.use_pos_filtering = analyzer_config.get('use_pos_filtering', True)
-        self.top_n_keywords = analyzer_config.get('top_n_keywords', 5)
-    
+
+    @classmethod
+    def get_dependencies(cls) -> list[str]:
+        return ['cluster_labels']
+
     def compute(self) -> dict:
-        """Compute topic extraction."""
-        logger.info("Extracting cluster topics...")
-        
-        topics = extract_cluster_topics(
-            df=self.df,
-            text_col=self.nlp_text_col,
-            cluster_col=self.cluster_col,
-            top_n=self.top_n_keywords
-        )
-        
-        labels = {cid: self._label_from_keywords(kw) for cid, kw in topics.items()}
-        
-        result = {
-            'cluster_topics': topics,
-            'cluster_labels': labels
+        """Compute topic ownership."""
+        logger.info("Computing topic owners...")
+        return {
+            'by_topic': compute_topic_owners(
+                df=self.df,
+                cluster_labels=self.cluster_labels,
+                terms=self.terms,
+                vocabulary=self.vocabulary,
+                cluster_col=self.cluster_col,
+                speaker_col=self.speaker_col,
+                party_col=self.party_col,
+            )
         }
-        
-        logger.info("Topic extraction complete: %d clusters", len(topics))
-        return result
-    
-    def _label_from_keywords(self, keywords: list[str]) -> str:
-        """Generate label from keywords."""
-        if not keywords:
-            return "Unknown"
-        label_words = keywords[:min(3, len(keywords))]
-        return " / ".join(word.title() for word in label_words)

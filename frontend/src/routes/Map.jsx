@@ -2,7 +2,7 @@ import { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { Page } from '../layout/AppShell';
 import { PeriodControls } from '../layout/PeriodControls';
-import { useData } from '../data/DataProvider';
+import { useData } from '../data/context';
 import { useSpeeches } from '../data/resources';
 import { useAppParams } from '../app/useAppParams';
 import { useTheme } from '../lib/useTheme';
@@ -37,7 +37,7 @@ export default function MapRoute() {
   // Speeches are a separate resource: the deputies view never downloads them.
   const { data: speeches, status: speechStatus } = useSpeeches();
 
-  const clusters = data?.clusters ?? {};
+  const clusters = useMemo(() => data?.clusters ?? {}, [data]);
   const periods = useMemo(() => availablePeriods(data), [data]);
 
   const items = useMemo(

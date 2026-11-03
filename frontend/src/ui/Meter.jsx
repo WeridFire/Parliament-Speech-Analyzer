@@ -12,8 +12,7 @@ const TONE_VAR = {
 /**
  * A horizontal magnitude bar.
  *
- * `value` is always 0–100 — callers normalise with metrics.toPercent() first,
- * declaring whether the source metric is 0–1 or already a percentage. The old
+ * `value` is always 0–100 — callers convert to a percentage first. The old
  * code passed `cohesion_score` (0–1) straight into `width: ${v}%`, which made
  * every cohesion bar 0.3% wide.
  *

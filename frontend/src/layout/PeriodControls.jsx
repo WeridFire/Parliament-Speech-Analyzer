@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Select, SegmentedControl } from '../ui';
 import { monthName } from '../lib/format';
-import { CHAMBER_LIST } from '../data/DataProvider';
+import { CHAMBER_LIST } from '../data/context';
 
 /**
  * Chamber + period controls.

@@ -1,38 +1,22 @@
 """
-Speaker Analyzer Package - Detailed per-politician statistics.
+Speaker Analyzer Package - Per-politician statistics.
 
-Provides 12 comprehensive metrics:
-1. Verbosity Index
-2. Question Rate
-3. Self-Reference Rate
-4. Data Citation Rate
-5. Negation Rate
-6. Temporal Orientation
-7. Consistency Index
-8. Topic Leadership
-9. Intervention Patterns
-10. Vocabulary Richness
-11. Interaction Network
-12. Named Entity Focus (optional)
+Provides:
+1. Activity (speeches, speaking days, active months)
+2. Verbosity (words per speech, words per sentence)
+3. Linguistic rates (questions, self-reference, negation, cited data)
+4. Vocabulary richness (MATTR)
+5. Main topics
+6. Reactions drawn (applause from other groups, protests)
 """
 
 from .analyzer import SpeakerAnalyzer
-from .verbosity import aggregate_speaker_metrics, compute_text_metrics_batch
-from .consistency import compute_consistency_index
-from .leadership import compute_topic_leadership
-from .intervention import compute_intervention_patterns
-from .vocabulary import compute_vocabulary_richness
-from .network import compute_interaction_network
-from .entities import compute_entity_focus
+from .profile import compute_speaker_profiles
+from .vocabulary import compute_vocabulary_richness, mattr
 
 __all__ = [
     'SpeakerAnalyzer',
-    'aggregate_speaker_metrics',
-    'compute_text_metrics_batch',
-    'compute_consistency_index',
-    'compute_topic_leadership',
-    'compute_intervention_patterns',
+    'compute_speaker_profiles',
     'compute_vocabulary_richness',
-    'compute_interaction_network',
-    'compute_entity_focus',
+    'mattr',
 ]

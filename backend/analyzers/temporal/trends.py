@@ -1,11 +1,18 @@
 """
-Topic Trends - Compute topic distribution over time.
+Topic Trends - how the agenda moves month by month.
+
+The previous version published raw counts only, and the number of sittings per
+month swings widely (August has a fraction of July's): every topic "fell" in
+August and "rose" in September. Shares of each month's speeches are what show
+the agenda moving; counts are kept for the hover detail.
 """
 
 import logging
-from collections import defaultdict
 
 import pandas as pd
+
+from backend.analyzers.common import blocs_of, topic_ids
+from backend.config import ALTRO, MAGGIORANZA, OPPOSIZIONE, UNCLASSIFIED_CLUSTER
 
 from .utils import add_time_columns
 
@@ -19,66 +26,55 @@ def compute_topic_trends(
     date_col: str = 'date',
     granularity: str = 'month',
     party_col: str = 'group',
-    speaker_col: str = 'deputy'
 ) -> dict:
     """
-    Compute topic distribution over time.
-    
-    Args:
-        df: DataFrame with speeches
-        cluster_col: Column with cluster assignments
-        cluster_labels: Dict mapping cluster_id -> label
-        date_col: Column with dates
-        granularity: 'month' or 'week'
-        party_col: Column with party info
-        speaker_col: Column with speaker info
-    
     Returns:
         {
-            'global': {period: {cluster_id: count, ...}, ...},
-            'by_party': {party: {period: {cluster_id: count, ...}, ...}, ...},
-            'periods': [sorted list of periods],
-            'cluster_labels': {cluster_id: label, ...}
+            'periods': [sorted periods],
+            'totals': {period: classified speeches},
+            'counts': {period: {topic: n}},
+            'shares': {period: {topic: % of the period's classified speeches}},
+            'blocs':  {period: {maggioranza, opposizione, altro}},   all speeches
         }
     """
     df = add_time_columns(df, date_col)
     period_col = '_month' if granularity == 'month' else '_week'
-    
-    result = {
-        'global': defaultdict(lambda: defaultdict(int)),
-        'by_party': defaultdict(lambda: defaultdict(lambda: defaultdict(int))),
-        'periods': [],
-        'cluster_labels': cluster_labels or {}
-    }
-    
-    # Filter rows with valid dates
-    valid_df = df[df[period_col].notna()]
-    
-    if valid_df.empty:
+    rows = df[df[period_col].notna()]
+
+    if rows.empty:
         logger.warning("No valid dates found for temporal analysis")
-        return result
-    
-    # Global trends
-    for _, row in valid_df.iterrows():
-        period = row[period_col]
-        cluster = int(row[cluster_col])
-        party = row[party_col]
-        
-        result['global'][period][cluster] += 1
-        
-        if party != 'Unknown Group':
-            result['by_party'][party][period][cluster] += 1
-    
-    # Get sorted periods
-    result['periods'] = sorted(result['global'].keys())
-    
-    # Convert defaultdicts to regular dicts
-    result['global'] = {k: dict(v) for k, v in result['global'].items()}
-    result['by_party'] = {
-        party: {period: dict(clusters) for period, clusters in periods.items()}
-        for party, periods in result['by_party'].items()
+        return {'periods': [], 'totals': {}, 'counts': {}, 'shares': {}, 'blocs': {}}
+
+    topics = topic_ids(cluster_labels or {})
+    classified = rows[rows[cluster_col] != UNCLASSIFIED_CLUSTER]
+
+    table = pd.crosstab(classified[period_col], classified[cluster_col])
+    table = table.reindex(columns=topics, fill_value=0)
+    totals = table.sum(axis=1)
+
+    blocs = pd.crosstab(rows[period_col], blocs_of(rows, party_col))
+    blocs = blocs.reindex(columns=[MAGGIORANZA, OPPOSIZIONE, ALTRO], fill_value=0)
+
+    periods = sorted(rows[period_col].unique())
+
+    result = {
+        'periods': periods,
+        'totals': {p: int(totals.get(p, 0)) for p in periods},
+        'counts': {
+            p: {t: int(table.at[p, t]) for t in topics} if p in table.index else {}
+            for p in periods
+        },
+        'shares': {
+            p: {
+                t: round(table.at[p, t] / totals[p] * 100, 2) for t in topics
+            } if p in table.index and totals[p] else {}
+            for p in periods
+        },
+        'blocs': {
+            p: {b: int(blocs.at[p, b]) for b in blocs.columns}
+            for p in periods
+        },
     }
-    
-    logger.info("Computed topic trends for %d periods", len(result['periods']))
-    
+
+    logger.info("Computed topic trends for %d periods", len(periods))
     return result

@@ -6,7 +6,8 @@ A comprehensive NLP-powered analysis platform for Italian parliamentary discours
 > **Frontend Development**: The frontend web application is currently under active development.
 
 > [!NOTE]
-> **Data**: The pipeline has not been run yet, so the data may not be accurate or fully compiled.
+> **Data**: Camera dei Deputati May 2025 – June 2026 (the open data publishes no
+> sittings after 17 June 2026), Senato August 2025 – October 2026.
 
 ---
 
@@ -82,10 +83,12 @@ It prints, per chamber, how many sittings officially exist against how many were
 fetched, parsed, blocked or failed, and exits non-zero when a chamber is blocked.
 
 > [!NOTE]
-> `senato.it` currently serves a CloudFront JavaScript challenge to automated
-> clients. Install Playwright (`pip install playwright && playwright install
-> chromium`) to enable the browser transport, or run from a network that is not
-> challenged.
+> `senato.it` serves a CloudFront JavaScript challenge to automated clients.
+> Install Playwright (`pip install playwright && playwright install chromium`)
+> to enable the browser transport. The browser keeps one context for the whole
+> run, so the challenge is solved once and later documents load in under a
+> second. Senato document ids are read from the yearly chronological listing:
+> the open-data sitting id is *not* the id of the stenographic report.
 
 ---
 
@@ -94,17 +97,28 @@ fetched, parsed, blocked or failed, and exits non-zero when a chamber is blocked
 The main data processing pipeline (`export_data.py`) orchestrates the following workflow:
 
 1. **Data Fetching** — Retrieves parliamentary speeches from configured sources
-2. **Text Cleaning** — Normalizes and preprocesses speech content
-3. **Embedding Generation** — Generates semantic embeddings using multilingual transformer models
-4. **Clustering** — Groups speeches into thematic clusters via K-Means
-5. **Analysis** — Runs all registered analyzers on the processed data
-6. **Export** — Outputs structured JSON for frontend consumption
+2. **Text Cleaning** — Drops the chair (by role), short and unattributed speeches;
+   normalises group labels from both chambers to one canonical name and bloc
+3. **Embedding Generation** — Multilingual sentence embeddings, cached per text
+4. **Topic Assignment** — Nearest configured topic in the *centred* embedding
+   space (or K-Means when no topics are configured)
+5. **Per-speech Features** — Every speech is read once: word and sentence counts,
+   Gulpease, linguistic markers, stage directions (applause, protests), mentions
+   of public figures, content-word lemmas (cached per text)
+6. **Analysis** — Analyzers aggregate those columns for the whole period and for
+   every year and month
+7. **Export** — Outputs structured JSON for frontend consumption
+
+A run over an unchanged corpus takes about 30 seconds for both chambers; only
+new speeches are embedded and lemmatised. Each stage's duration is logged.
 
 **Command-Line Options:**
 ```bash
 python backend/export_data.py [OPTIONS]
 
 --refetch                 # Force re-download of all speeches
+--offline                 # Build the corpus from cached sittings only (no network)
+--output-dir PATH         # Where to write the payload (default: frontend/public/data)
 --reembed                 # Force regeneration of embeddings
 --cloudscraper            # Route requests through cloudscraper
 --source [camera|senate|both]  # Select data source
@@ -113,8 +127,9 @@ python backend/export_data.py [OPTIONS]
 --strict                  # Exit non-zero if any analyzer failed
 ```
 
-Embeddings are cached against a fingerprint of the exact texts they encode, so a
-corpus that changed without changing size can never reuse stale vectors.
+Embeddings and lemmas are cached per text (keyed by a content digest and the
+model), so a new sitting costs only its own speeches and a stale vector can
+never be reused for a different text.
 
 **Output** goes to `frontend/public/data/` as a manifest plus per-resource
 chunks — see [docs/JSON_SCHEMA.md](docs/JSON_SCHEMA.md).
@@ -123,66 +138,27 @@ chunks — see [docs/JSON_SCHEMA.md](docs/JSON_SCHEMA.md).
 
 ### Analytics Modules
 
-The system employs a modular, registry-based architecture for analytics. Each analyzer is independently configurable and cacheable.
+The system employs a modular, registry-based architecture for analytics. Each
+analyzer is independently configurable and declares the sample size it needs;
+on a thin month it declines and the frontend shows the global figure instead,
+saying so.
 
-#### 1. Identity Analyzer
-Analyzes political identity and thematic DNA.
+| Analyzer | What it measures |
+|----------|------------------|
+| **identity** | Share of each group's speeches per topic and its lift over the chamber; generalism (topic entropy, ≥20 speeches); distinctive vocabulary (weighted log-odds with an informative prior) |
+| **topics** | Per topic: the members who intervene on it most, each group's involvement relative to its size, the words that characterise it |
+| **blocs** | Majority (with the government) vs opposition: issue ownership measured on each side's share of attention, and the words that separate them |
+| **relations** | Party affinity, internal homogeneity and closest cross-party pairs, in the centred embedding space |
+| **reactions** | Applause and protests between groups, from the stage directions of the report (group attribution exists at the Camera only) |
+| **mentions** | How often each group names a curated list of leaders, ministers and foreign heads of government |
+| **temporal** | Monthly topic shares and monthly activity per bloc (global only) |
+| **speaker** | Per-member activity, verbosity, linguistic rates, MATTR vocabulary richness, main topics and reactions drawn |
+| **language** | Gulpease readability and "us vs them" polarization |
 
-| Feature | Description |
-|---------|-------------|
-| **Thematic Fingerprint** | Radar chart showing topic distribution per party/speaker |
-| **Generalism Index** | Entropy-based measure of topic specialization |
-| **Distinctive Keywords** | TF-IDF extracted keywords unique to each party |
-
-#### 2. Sentiment Analyzer
-Qualitative analysis of political communication.
-
-| Feature | Description |
-|---------|-------------|
-| **Topic Sentiment** | Aspect-based sentiment analysis per cluster |
-| **Readability Scores** | Gulpease index for Italian text complexity |
-| **Polarization Scores** | "Us vs Them" rhetoric detection |
-| **Sentiment Rankings** | Party and speaker sentiment comparisons |
-| **Transformer Sentiment** | Optional deep learning-based sentiment (HuggingFace) |
-
-#### 3. Temporal Analyzer
-Tracks discourse evolution over time.
-
-| Feature | Description |
-|---------|-------------|
-| **Topic Trends** | Monthly distribution of thematic focus |
-| **Semantic Drift** | Party position shifts in embedding space |
-| **Crisis Index** | Frequency of alarm-related terminology |
-| **Topic Surfing** | Detection of rapid topic focus changes |
-
-#### 4. Relations Analyzer
-Analyzes inter-party relationships.
-
-| Feature | Description |
-|---------|-------------|
-| **Affinity Matrix** | Semantic similarity between parties |
-| **Party Cohesion** | Internal coherence of party discourse |
-| **Thematic Overlap** | Shared topic focus between parties |
-| **Cross-Party Pairs** | Identification of closest speakers across parties |
-
-#### 5. Rhetoric Analyzer
-Detects speech style and rhetoric patterns.
-
-| Feature | Description |
-|---------|-------------|
-| **Populist Markers** | Detection of populist rhetoric elements |
-| **Anti-Establishment Markers** | Identification of anti-elite discourse |
-| **Emotional Intensifiers** | Measurement of emotional language usage |
-| **Rhetorical Style Classification** | Categorization of communication style |
-
-#### 6. Topics Analyzer
-Thematic clustering and topic labeling.
-
-| Feature | Description |
-|---------|-------------|
-| **Cluster Extraction** | Semantic grouping of speeches |
-| **Topic Labeling** | Automatic or predefined cluster naming |
-| **Keyword Extraction** | POS-tagged keyword filtering (nouns, adjectives) |
+Removed after the audit, because they measured something other than what they
+claimed: lexicon sentiment, populist/anti-establishment rhetoric, crisis index,
+semantic drift, topic surfing, consistency index, factions, alliances (a
+duplicate of the cross-party pairs) and thematic divergence.
 
 ---
 
@@ -222,8 +198,11 @@ python backend/export_data.py
 
 ### Run with Options
 ```bash
-# Fresh data fetch with transformer sentiment
-python backend/export_data.py --refetch --transformer-sentiment
+# Fresh data fetch
+python backend/export_data.py --refetch
+
+# Rebuild from cached sittings when the open-data endpoints are down
+python backend/export_data.py --offline
 
 # Camera only, with CloudScraper
 python backend/export_data.py --source camera --cloudscraper

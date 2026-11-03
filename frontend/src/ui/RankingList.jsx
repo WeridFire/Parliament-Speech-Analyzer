@@ -11,8 +11,8 @@ import { EmptyState } from './EmptyState';
  *
  * @param {Array} items  [{ key, name, meta, value, percent, tone, color, dot }]
  *                       `percent` is 0–100 and drives the bar; `value` is the
- *                       already-formatted display string. Callers normalise via
- *                       metrics.toPercent() so scale handling stays in one place.
+ *                       already-formatted display string. Callers convert to
+ *                       percentages before passing them in.
  */
 export function RankingList({ items, emptyMessage = 'Nessun dato disponibile.', className }) {
   if (!items?.length) return <EmptyState message={emptyMessage} />;

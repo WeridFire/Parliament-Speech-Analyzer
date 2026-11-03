@@ -61,7 +61,7 @@ def main() -> int:
 
     manifest_path = args.data_dir / 'manifest.json'
     if not manifest_path.exists():
-        print(f"No manifest at {manifest_path}. Run the pipeline (or migrate_payload) first.")
+        print(f"No manifest at {manifest_path}. Run the pipeline first.")
         return 1
 
     manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
@@ -145,9 +145,10 @@ def main() -> int:
             "- `text` is the speech as delivered, truncated for transport. The full",
             "  report is linked by `url`.",
             "- `cluster` is `-1` for speeches too far from every topic to classify;",
-            "  `cluster_conf` is the margin between the best and second-best topic.",
-            "- `divergence_pct` is the share of a speaker's interventions outside",
-            "  their party's dominant theme. It measures topic choice, not dissent.",
+            "  `cluster_conf` is the margin between the best and second-best topic",
+            "  (similarities taken after removing the corpus mean).",
+            "- `party` is the canonical group name; `core.parties` gives each group's",
+            "  bloc (`maggioranza`, `opposizione`, `altro`).",
             "",
         ]
 
@@ -157,10 +158,14 @@ def main() -> int:
         f"Analyzer sections present at global scope: {', '.join(f'`{k}`' for k in analytics)}",
         "",
         "Period files carry the same shape, minus analyzers that decline to run on a",
-        "slice: metrics about change over time (`temporal`) and corpus-level labels",
-        "(`topics`) are global-only, and others require a minimum sample size. A",
-        "period whose analyzers all declined has no file at all, so the frontend",
-        "falls back to the global block.",
+        "slice: metrics about change over time (`temporal`) are global-only, and",
+        "the others require a minimum sample size. A period whose analyzers all",
+        "declined has no file at all. The frontend falls back to the global block",
+        "section by section, and says so.",
+        "",
+        "`reactions.coverage.attributed` is false for the Senato, whose reports",
+        "print a bare \"(Applausi)\" without naming the group; only `received` and",
+        "`coverage` are meaningful there.",
         "",
     ]
 

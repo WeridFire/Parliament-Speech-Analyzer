@@ -15,6 +15,9 @@ import { EmptyState } from '../../ui/EmptyState';
  * Size encodes rank, which is ordinal — so it takes a single hue stepped by
  * lightness, not the categorical slots. Colour here is redundant with size, by
  * design; the word itself always carries the meaning.
+ *
+ * `words` is either plain strings or the backend's `{term, z, n}` records; the
+ * strength of the evidence (z) and the count are exposed as a tooltip.
  */
 export function WordCloud({ words, mode = 'light', max = 40, className }) {
   const items = useMemo(() => {
@@ -22,10 +25,12 @@ export function WordCloud({ words, mode = 'light', max = 40, className }) {
     const list = words.slice(0, max);
     const n = list.length;
 
-    return list.map((word, i) => {
+    return list.map((entry, i) => {
       const rank = 1 - i / Math.max(n - 1, 1); // 1 = most distinctive
+      const word = typeof entry === 'string' ? entry : entry.term;
       return {
         word,
+        title: typeof entry === 'string' ? undefined : `${entry.n} occorrenze · z = ${entry.z}`,
         size: 0.8 + rank * 1.05, // rem
         weight: rank > 0.66 ? 600 : rank > 0.33 ? 500 : 400,
         opacity: 0.5 + rank * 0.5,
@@ -46,9 +51,10 @@ export function WordCloud({ words, mode = 'light', max = 40, className }) {
         className,
       )}
     >
-      {items.map(({ word, size, weight, opacity }) => (
+      {items.map(({ word, title, size, weight, opacity }) => (
         <li
           key={word}
+          title={title}
           className="leading-tight"
           style={{
             fontSize: `${size}rem`,

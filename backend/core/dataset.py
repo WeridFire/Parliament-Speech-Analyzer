@@ -43,15 +43,17 @@ class SpeechDataset:
     df: pd.DataFrame
     embeddings: Optional[np.ndarray] = None
     topic_scores: Optional[np.ndarray] = None
+    # Sparse speech x term counts (scipy CSR), see core.features.build_term_matrix
+    terms: Optional[object] = None
 
     def __post_init__(self):
         n = len(self.df)
 
-        for name in ('embeddings', 'topic_scores'):
+        for name in ('embeddings', 'topic_scores', 'terms'):
             array = getattr(self, name)
-            if array is not None and len(array) != n:
+            if array is not None and array.shape[0] != n:
                 raise ValueError(
-                    f"{name} has {len(array)} rows but the frame has {n}; "
+                    f"{name} has {array.shape[0]} rows but the frame has {n}; "
                     "they must be parallel"
                 )
 
@@ -86,6 +88,7 @@ class SpeechDataset:
             df=self.df.iloc[positions].reset_index(drop=True),
             embeddings=None if self.embeddings is None else self.embeddings[positions],
             topic_scores=None if self.topic_scores is None else self.topic_scores[positions],
+            terms=None if self.terms is None else self.terms[positions],
         )
 
     def subset(self, mask) -> "SpeechDataset":
@@ -115,12 +118,14 @@ class SpeechDataset:
         self,
         embeddings: Optional[np.ndarray] = None,
         topic_scores: Optional[np.ndarray] = None,
+        terms=None,
     ) -> "SpeechDataset":
         """Attach arrays computed after construction (validated on the way in)."""
         return replace(
             self,
             embeddings=self.embeddings if embeddings is None else embeddings,
             topic_scores=self.topic_scores if topic_scores is None else topic_scores,
+            terms=self.terms if terms is None else terms,
         )
 
     # -------------------------------------------------------------------------
@@ -194,4 +199,6 @@ class SpeechDataset:
             parts.append(f"emb{self.embeddings.shape}")
         if self.topic_scores is not None:
             parts.append(f"topics{self.topic_scores.shape}")
+        if self.terms is not None:
+            parts.append(f"terms{self.terms.shape}")
         return f"<SpeechDataset {', '.join(parts)}>"
